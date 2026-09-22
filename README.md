@@ -6,6 +6,7 @@ Aplicación para controlar el despacho de combustible desde **camiones cisterna 
 - **Hardware emulado**: `simulator/` reproduce el controlador del camión (RFID, caudalímetro, sensor de nivel, GPS) e inyecta escenarios de robo para probar las reglas.
 - **Firmware real**: [firmware/](firmware/README.md) para ESP32 con módem 4G SIM7600 (o WiFi), con lista blanca local y cola de eventos sin cobertura.
 - **Documento de hardware y costos**: [docs/HARDWARE_Y_COSTOS.md](docs/HARDWARE_Y_COSTOS.md) (también dentro del dashboard, con calculadora de retorno editable).
+- **Lista de compra del piloto** con proveedores y precios verificados: [docs/LISTA_DE_COMPRA_PILOTO.md](docs/LISTA_DE_COMPRA_PILOTO.md).
 
 ## Arranque rápido
 
