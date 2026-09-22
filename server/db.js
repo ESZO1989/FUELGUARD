@@ -161,6 +161,16 @@ function crearEsquema(db) {
     creado TEXT NOT NULL,
     expira TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS confirmaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    despacho_id INTEGER NOT NULL UNIQUE REFERENCES despachos(id),
+    chofer_id INTEGER REFERENCES usuarios(id),
+    operador_nombre TEXT,
+    horometro REAL,
+    firma TEXT,
+    observacion TEXT,
+    ts TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS auditoria (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,

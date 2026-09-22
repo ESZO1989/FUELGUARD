@@ -34,7 +34,8 @@ Levanta el servidor en <http://localhost:3000> y el simulador de dos cisternas. 
 | **Alertas** | 13 tipos de eventos con severidad; resolución con nota y auditoría |
 | **Equipos** | Catálogo con tag RFID, operador, capacidad, horómetro; estado de cada cisterna/dispositivo |
 | **Hardware y costos** | Explicación del funcionamiento, arquitectura, tabla de componentes con precios editables y calculadora CAPEX/OPEX/ROI con gráfico |
-| **Administración** | Usuarios y roles, parámetros de las reglas, auditoría |
+| **Administración** | Usuarios y roles, cisternas y claves de dispositivo, parámetros de las reglas, respaldos, auditoría |
+| **App del chofer** (`/chofer/`) | Aplicación instalable para la tablet del camión: despacho en vivo, bloqueos, confirmación con horómetro y firma del operador, ticket imprimible, recargas del proveedor, despacho manual de contingencia y cola sin conexión |
 
 ## Reglas antirrobo (server/rules.js)
 
@@ -64,6 +65,7 @@ server/db.js        esquema SQLite, migraciones y datos semilla
 simulator/          emulador del controlador de cisterna (mismo protocolo que el firmware)
 firmware/           firmware real del controlador (ESP32 + SIM7600, PlatformIO) — ver firmware/README.md
 public/             dashboard (HTML/CSS/JS, Chart.js por CDN)
+public/chofer/      app del chofer (PWA: manifest + service worker, sin dependencias)
 docs/               hardware, costos y funcionamiento
 tests/              pruebas del motor de reglas y de la API (node --test)
 deploy/             Caddyfile, servicio systemd, instalador Windows; Dockerfile y docker-compose en la raíz

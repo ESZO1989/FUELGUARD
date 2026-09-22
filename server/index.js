@@ -188,7 +188,8 @@ ruta('POST', '/api/login', async ({ cuerpo, req }) => {
   }
   intentosLogin.delete(clave);
   const token = crypto.randomBytes(24).toString('hex');
-  const expira = new Date(Date.now() + 12 * 3600e3).toISOString();
+  // "recordar" (tablet del camión): sesión de 30 días en lugar de 12 horas.
+  const expira = new Date(Date.now() + (cuerpo.recordar ? 30 * 86400e3 : 12 * 3600e3)).toISOString();
   db.prepare('INSERT INTO sesiones (token, usuario_id, creado, expira) VALUES (?,?,?,?)').run(token, u.id, ahoraISO(), expira);
   q.insAuditoria.run(ahoraISO(), u.id, 'login', null);
   delete u.pin_hash;
@@ -244,7 +245,8 @@ ruta('GET', '/api/despachos', async ({ usuario, url }) => {
   const where = 'WHERE 1=1' + (filtros.length ? ' AND ' + filtros.join(' AND ') : '') + al.sql;
   return db.prepare(`
     SELECT d.*, e.codigo AS equipo_codigo, e.nombre AS equipo_nombre, e.capacidad_tanque, c.codigo AS cisterna_codigo, uo.nombre AS operador, uc.nombre AS chofer,
-      (SELECT COUNT(*) FROM alertas a WHERE a.despacho_id = d.id) AS n_alertas
+      (SELECT COUNT(*) FROM alertas a WHERE a.despacho_id = d.id) AS n_alertas,
+      (SELECT CASE WHEN firma IS NOT NULL THEN 2 ELSE 1 END FROM confirmaciones cf WHERE cf.despacho_id = d.id) AS confirmado
     FROM despachos d LEFT JOIN equipos e ON e.id = d.equipo_id JOIN cisternas c ON c.id = d.cisterna_id
     LEFT JOIN usuarios uo ON uo.id = d.operador_id LEFT JOIN usuarios uc ON uc.id = d.chofer_id
     ${where} ORDER BY d.inicio DESC LIMIT ?`).all(...params, ...al.params, limite);
@@ -254,7 +256,64 @@ ruta('GET', '/api/despachos/:id', async ({ usuario, params }) => {
   const d = q.despachoDetalle.get(Number(params.id));
   if (!d) throw new HttpError(404, 'Despacho no encontrado');
   d.alertas = db.prepare('SELECT * FROM alertas WHERE despacho_id = ? ORDER BY ts').all(d.id);
+  d.confirmacion = db.prepare('SELECT c.*, u.nombre AS chofer_nombre FROM confirmaciones c LEFT JOIN usuarios u ON u.id = c.chofer_id WHERE c.despacho_id = ?').get(d.id) || null;
   return d;
+});
+
+// Confirmación en la tablet del chofer: horómetro leído en el equipo, firma del operador y observación.
+ruta('POST', '/api/despachos/:id/confirmar', async ({ usuario, params, cuerpo }) => {
+  const u = requerir(usuario, 'admin', 'supervisor', 'chofer');
+  const d = q.despachoPorId.get(Number(params.id));
+  if (!d) throw new HttpError(404, 'Despacho no encontrado');
+  if (u.rol === 'chofer' && d.cisterna_id !== u.cisterna_id) throw new HttpError(403, 'El despacho no es de su cisterna');
+  if (d.estado === 'en_curso' || d.estado === 'rechazado') throw new HttpError(409, `No se puede confirmar un despacho ${d.estado}`);
+  const firma = typeof cuerpo.firma === 'string' && cuerpo.firma.startsWith('data:image/png;base64,') && cuerpo.firma.length < 200000 ? cuerpo.firma : null;
+  const horometro = cuerpo.horometro != null && cuerpo.horometro !== '' ? Number(cuerpo.horometro) : null;
+  if (horometro != null && !(horometro >= 0)) throw new HttpError(400, 'horómetro inválido');
+  db.prepare(`INSERT INTO confirmaciones (despacho_id, chofer_id, operador_nombre, horometro, firma, observacion, ts) VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(despacho_id) DO UPDATE SET horometro = COALESCE(excluded.horometro, horometro), firma = COALESCE(excluded.firma, firma), observacion = COALESCE(excluded.observacion, observacion), ts = excluded.ts`)
+    .run(d.id, u.id, cuerpo.operador_nombre || null, horometro, firma, cuerpo.observacion ? String(cuerpo.observacion).slice(0, 500) : null, ahoraISO());
+  const alertas = [];
+  // Si el controlador no tenía horómetro (sin CAN), el valor ingresado habilita la regla de consumo por hora.
+  if (horometro != null && d.equipo_id && d.horometro == null) {
+    const equipo = q.equipoPorId.get(d.equipo_id);
+    const anterior = d.horometro_anterior ?? equipo.horometro;
+    db.prepare('UPDATE despachos SET horometro = ?, horometro_anterior = COALESCE(horometro_anterior, ?) WHERE id = ?').run(horometro, anterior, d.id);
+    if (horometro > equipo.horometro) q.updHorometro.run(horometro, equipo.id);
+    const ev = reglas.evaluarFin({ despacho: d, equipo, cisterna: q.cisternaPorId.get(d.cisterna_id), litros: d.litros, fin: d.fin, horometro, horometroAnterior: anterior });
+    alertas.push(...registrarAlertas(ev.alertas.filter(a => a.tipo === 'consumo_anomalo'), { despacho_id: d.id, cisterna_id: d.cisterna_id, equipo_id: d.equipo_id, operador_id: d.operador_id }));
+  }
+  q.insAuditoria.run(ahoraISO(), u.id, 'confirmar_despacho', `#${d.id}${firma ? ' con firma' : ''}${horometro != null ? ' horómetro ' + horometro : ''}`);
+  emitir('despacho_confirmado', { id: d.id, cisterna_id: d.cisterna_id, firmado: !!firma, horometro }, { cisterna_id: d.cisterna_id, operador_id: d.operador_id });
+  return { ok: true, alertas: alertas.map(a => a.tipo) };
+});
+
+// Despacho manual de contingencia (controlador averiado). Queda marcado y genera alerta para revisión del supervisor.
+ruta('POST', '/api/despachos/manual', async ({ usuario, cuerpo }) => {
+  const u = requerir(usuario, 'admin', 'supervisor', 'chofer');
+  const cisterna = q.cisternaPorId.get(u.rol === 'chofer' ? u.cisterna_id : Number(cuerpo.cisterna_id));
+  if (!cisterna) throw new HttpError(400, 'Cisterna no válida');
+  const equipo = q.equipoPorId.get(Number(cuerpo.equipo_id));
+  if (!equipo) throw new HttpError(400, 'Equipo no válido');
+  const litros = Number(cuerpo.litros);
+  if (!(litros > 0) || litros > equipo.capacidad_tanque * 1.5) throw new HttpError(400, 'Litros inválidos para ese equipo');
+  const ahora = ahoraISO();
+  const horometro = cuerpo.horometro != null && cuerpo.horometro !== '' ? Number(cuerpo.horometro) : null;
+  const r = db.prepare(`INSERT INTO despachos (cisterna_id, equipo_id, tag_rfid, chofer_id, operador_id, inicio, fin, litros, pulsos, caudal_prom, lat, lng, horometro, horometro_anterior, nivel_antes, nivel_despues, estado, motivo)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'completado','manual')`)
+    .run(cisterna.id, equipo.id, equipo.tag_rfid, cisterna.chofer_id, equipo.operador_id, ahora, ahora, litros, 0, null, cisterna.lat, cisterna.lng, horometro, equipo.horometro, cisterna.nivel_actual, Math.max(0, cisterna.nivel_actual - litros));
+  const id = Number(r.lastInsertRowid);
+  db.prepare('UPDATE cisternas SET nivel_actual = MAX(0, nivel_actual - ?) WHERE id = ?').run(litros, cisterna.id);
+  if (horometro != null && horometro > equipo.horometro) q.updHorometro.run(horometro, equipo.id);
+  const anterior = q.ultimoHash.get();
+  db.prepare('UPDATE despachos SET hash = ? WHERE id = ?').run(calcularHash({ id, cisterna_id: cisterna.id, equipo_id: equipo.id, inicio: ahora, fin: ahora, litros, pulsos: 0 }, anterior ? anterior.hash : null), id);
+  registrarAlertas([{ tipo: 'despacho_manual', severidad: 'media', litros, mensaje: `Despacho MANUAL de ${litros} L a ${equipo.codigo} registrado por ${u.nombre} desde ${cisterna.codigo} (${cuerpo.motivo || 'sin motivo indicado'}). Verificar con el vale físico.` }],
+    { despacho_id: id, cisterna_id: cisterna.id, equipo_id: equipo.id, operador_id: equipo.operador_id });
+  q.insAuditoria.run(ahora, u.id, 'despacho_manual', `#${id} ${equipo.codigo} ${litros} L`);
+  const detalle = q.despachoDetalle.get(id);
+  emitir('despacho_fin', detalle, { cisterna_id: cisterna.id, operador_id: equipo.operador_id });
+  emitir('nivel', { cisterna_id: cisterna.id, codigo: cisterna.codigo, nivel: q.cisternaPorId.get(cisterna.id).nivel_actual, capacidad: cisterna.capacidad }, { cisterna_id: cisterna.id });
+  return detalle;
 });
 
 // --- Alertas ---
@@ -639,11 +698,11 @@ ruta('POST', '/api/dispositivo/nivel', async ({ req, cuerpo }) => {
   return { ok: true, alertas: ev.alertas.map(a => a.tipo) };
 });
 
-ruta('POST', '/api/dispositivo/recarga', async ({ req, cuerpo }) => {
-  const cisterna = cisternaDesde(req);
+// Recarga del proveedor: la reporta el controlador (con nivel medido) o el chofer desde la tablet (con la guía).
+function registrarRecarga(cisterna, cuerpo, origen) {
   const litros = Number(cuerpo.litros);
-  if (!(litros > 0)) throw new HttpError(400, 'litros inválido');
-  const nivelDespues = cuerpo.nivel_despues != null ? Number(cuerpo.nivel_despues) : Math.min(cisterna.capacidad, cisterna.nivel_actual + litros);
+  if (!(litros > 0) || litros > cisterna.capacidad) throw new HttpError(400, 'litros inválido');
+  const nivelDespues = cuerpo.nivel_despues != null && cuerpo.nivel_despues !== '' ? Number(cuerpo.nivel_despues) : Math.min(cisterna.capacidad, cisterna.nivel_actual + litros);
   q.insRecarga.run(cisterna.id, ahoraISO(), litros, cuerpo.guia || null, cisterna.nivel_actual, nivelDespues);
   q.updNivelCisterna.run(nivelDespues, ahoraISO(), null, null, cisterna.id);
   q.insLectura.run(cisterna.id, ahoraISO(), nivelDespues, cisterna.lat, cisterna.lng);
@@ -652,9 +711,18 @@ ruta('POST', '/api/dispositivo/recarga', async ({ req, cuerpo }) => {
     registrarAlertas([{ tipo: 'recarga_descuadrada', severidad: 'alta', litros: Math.abs(dif),
       mensaje: `Recarga de ${litros} L en ${cisterna.codigo} (guía ${cuerpo.guia || 's/n'}) pero el nivel subió ${Math.round(nivelDespues - cisterna.nivel_actual)} L. Diferencia ${Math.round(dif)} L con el proveedor.` }], { cisterna_id: cisterna.id });
   }
-  emitir('recarga', { cisterna_id: cisterna.id, codigo: cisterna.codigo, litros, guia: cuerpo.guia, nivel: nivelDespues, capacidad: cisterna.capacidad }, { cisterna_id: cisterna.id });
+  emitir('recarga', { cisterna_id: cisterna.id, codigo: cisterna.codigo, litros, guia: cuerpo.guia, nivel: nivelDespues, capacidad: cisterna.capacidad, origen }, { cisterna_id: cisterna.id });
   emitir('nivel', { cisterna_id: cisterna.id, codigo: cisterna.codigo, nivel: nivelDespues, capacidad: cisterna.capacidad }, { cisterna_id: cisterna.id });
-  return { ok: true, nivel: nivelDespues };
+  return { ok: true, nivel: nivelDespues, litros };
+}
+ruta('POST', '/api/dispositivo/recarga', async ({ req, cuerpo }) => registrarRecarga(cisternaDesde(req), cuerpo, 'controlador'));
+ruta('POST', '/api/recargas', async ({ usuario, cuerpo }) => {
+  const u = requerir(usuario, 'admin', 'supervisor', 'chofer');
+  const cisterna = q.cisternaPorId.get(u.rol === 'chofer' ? u.cisterna_id : Number(cuerpo.cisterna_id));
+  if (!cisterna) throw new HttpError(400, 'Cisterna no válida');
+  const r = registrarRecarga(cisterna, cuerpo, u.nombre);
+  q.insAuditoria.run(ahoraISO(), u.id, 'recarga', `${cisterna.codigo} ${r.litros} L guía ${cuerpo.guia || 's/n'}`);
+  return r;
 });
 
 // Vigilante: despachos sin señal y cisternas fuera de línea.
@@ -677,10 +745,11 @@ setInterval(() => {
 // ------------------------------------------------------------------
 // Archivos estáticos
 // ------------------------------------------------------------------
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 function servirEstatico(url, res) {
   let ruta = decodeURIComponent(url.pathname);
-  if (ruta === '/') ruta = '/index.html';
+  if (ruta.endsWith('/')) ruta += 'index.html';
+  if (ruta === '/chofer') ruta = '/chofer/index.html';
   const archivo = path.normalize(path.join(PUBLIC_DIR, ruta));
   if (!archivo.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(archivo, (err, data) => {

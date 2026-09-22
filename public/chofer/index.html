@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c5cab">
+<meta name="mobile-web-app-capable" content="yes">
+<title>FuelGuard Chofer</title>
+<link rel="manifest" href="/chofer/manifest.webmanifest">
+<link rel="icon" href="/chofer/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/chofer/icon.svg">
+<link rel="stylesheet" href="/chofer/styles.css">
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<section id="v-login" class="vista pantalla-centrada">
+  <div class="tarjeta login">
+    <img src="/chofer/icon.svg" alt="" class="logo">
+    <h1>FuelGuard Chofer</h1>
+    <p class="muted">Tablet del camión cisterna</p>
+    <form id="form-login" autocomplete="off">
+      <label>Usuario<input id="l-usuario" required autocapitalize="none" placeholder="chofer1"></label>
+      <label>PIN<input id="l-pin" type="password" inputmode="numeric" required placeholder="••••"></label>
+      <label class="check"><input type="checkbox" id="l-recordar" checked> Recordar en esta tablet (30 días)</label>
+      <div class="error" id="l-error"></div>
+      <button class="btn grande primario" type="submit">Ingresar</button>
+    </form>
+    <p class="small muted" id="l-demo">Demo: <b>chofer1 / 2222</b> (CIST-01) · <b>chofer2 / 3333</b> (CIST-02)</p>
+  </div>
+</section>
+
+<!-- ===== APP ===== -->
+<div id="app" class="hidden">
+  <header class="cabecera">
+    <div class="cab-izq"><b id="c-cisterna">CIST-01</b><span class="muted" id="c-placa"></span></div>
+    <div class="cab-der"><span class="conexion" id="conexion"><i></i><span>Conectando</span></span><span class="muted" id="c-chofer"></span></div>
+  </header>
+
+  <main id="contenido">
+    <!-- INICIO -->
+    <section id="v-inicio" class="vista">
+      <div class="tarjeta estado" id="estado">
+        <div class="estado-icono">📡</div>
+        <div class="estado-titulo">Esperando lectura del tag RFID</div>
+        <div class="estado-sub muted">Acerque la pistola al cuello del tanque del equipo</div>
+      </div>
+      <div class="tarjeta nivel">
+        <div class="fila"><span>Nivel de la cisterna</span><b id="n-litros">— L</b></div>
+        <div class="gauge"><i id="n-barra"></i></div>
+        <div class="fila small muted"><span id="n-pct"></span><span id="n-cap"></span></div>
+      </div>
+      <div class="acciones-grid">
+        <button class="btn accion" data-ir="recarga">⛽<span>Registrar recarga</span></button>
+        <button class="btn accion" data-ir="manual">✍️<span>Despacho manual</span></button>
+        <button class="btn accion" data-ir="alertas">⚠️<span>Alertas <em id="n-alertas" class="pill hidden">0</em></span></button>
+        <button class="btn accion" data-ir="hoy">📋<span>Despachos de hoy</span></button>
+      </div>
+      <div class="tarjeta" id="pendientes-card" style="display:none"><b>Pendientes de sincronizar: <span id="n-pendientes">0</span></b><div class="small muted">Se enviarán solos al recuperar señal</div></div>
+    </section>
+
+    <!-- HOY -->
+    <section id="v-hoy" class="vista hidden">
+      <h2>Despachos de hoy <span class="muted" id="hoy-total"></span></h2>
+      <div class="lista" id="lista-hoy"></div>
+    </section>
+
+    <!-- CONFIRMAR -->
+    <section id="v-confirmar" class="vista hidden">
+      <h2>Confirmar despacho <span class="muted" id="cf-id"></span></h2>
+      <div class="tarjeta resumen" id="cf-resumen"></div>
+      <div class="tarjeta">
+        <label>Horómetro del equipo (horas)<input id="cf-horometro" type="number" step="0.1" inputmode="decimal" placeholder="Lea el horómetro en el tablero"></label>
+        <label>Observación (opcional)<input id="cf-obs" maxlength="200" placeholder="Ej.: tanque casi vacío, fuga en tapa…"></label>
+        <div class="firma-cab"><span>Firma del operador <b id="cf-operador"></b></span><button class="btn small" id="cf-limpiar" type="button">Limpiar</button></div>
+        <canvas id="cf-firma" class="firma"></canvas>
+        <div class="botones">
+          <button class="btn grande primario" id="cf-guardar">Guardar confirmación</button>
+          <button class="btn grande" id="cf-ticket">🖨 Ticket</button>
+          <button class="btn" id="cf-omitir">Más tarde</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TICKET -->
+    <section id="v-ticket" class="vista hidden">
+      <div class="ticket" id="ticket"></div>
+      <div class="botones no-print">
+        <button class="btn grande primario" id="tk-imprimir">🖨 Imprimir</button>
+        <button class="btn grande" id="tk-compartir">Compartir</button>
+        <button class="btn" data-ir="inicio">Cerrar</button>
+      </div>
+    </section>
+
+    <!-- RECARGA -->
+    <section id="v-recarga" class="vista hidden">
+      <h2>Registrar recarga del proveedor</h2>
+      <form id="form-recarga" class="tarjeta">
+        <label>Litros según guía de remisión<input id="r-litros" type="number" min="1" step="1" inputmode="numeric" required></label>
+        <label>N° de guía / factura<input id="r-guia" placeholder="GR-00123"></label>
+        <label>Nivel de la cisterna después de cargar (L, opcional)<input id="r-nivel" type="number" step="1" inputmode="numeric" placeholder="Si tiene varilla o visor"></label>
+        <p class="small muted">Si el camión tiene sensor de nivel, el controlador comparará la guía con lo que subió el tanque y avisará si el proveedor entregó de menos.</p>
+        <div class="botones"><button class="btn grande primario" type="submit">Registrar</button><button class="btn" type="button" data-ir="inicio">Cancelar</button></div>
+      </form>
+    </section>
+
+    <!-- MANUAL -->
+    <section id="v-manual" class="vista hidden">
+      <h2>Despacho manual (contingencia)</h2>
+      <form id="form-manual" class="tarjeta">
+        <p class="aviso">Solo si el controlador o el lector RFID no funcionan. Queda marcado como MANUAL y genera una alerta para el supervisor.</p>
+        <label>Equipo<select id="m-equipo" required></select></label>
+        <label>Litros despachados<input id="m-litros" type="number" min="1" step="0.1" inputmode="decimal" required></label>
+        <label>Horómetro del equipo<input id="m-horometro" type="number" step="0.1" inputmode="decimal"></label>
+        <label>Motivo<select id="m-motivo"><option>Controlador sin energía</option><option>Lector RFID no lee el tag</option><option>Tag del equipo dañado o ausente</option><option>Caudalímetro averiado</option><option>Otro</option></select></label>
+        <div class="botones"><button class="btn grande primario" type="submit">Registrar despacho manual</button><button class="btn" type="button" data-ir="inicio">Cancelar</button></div>
+      </form>
+    </section>
+
+    <!-- ALERTAS -->
+    <section id="v-alertas" class="vista hidden">
+      <h2>Alertas de mi cisterna</h2>
+      <div class="lista" id="lista-alertas"></div>
+    </section>
+
+    <!-- MENÚ -->
+    <section id="v-menu" class="vista hidden">
+      <h2>Menú</h2>
+      <div class="tarjeta lista-menu">
+        <button class="btn grande" id="btn-instalar" style="display:none">📲 Instalar en la tablet</button>
+        <button class="btn grande" id="btn-tema">🌓 Cambiar tema claro/oscuro</button>
+        <button class="btn grande" id="btn-sincronizar">🔄 Sincronizar pendientes</button>
+        <button class="btn grande" id="btn-recargar">♻️ Recargar aplicación</button>
+        <button class="btn grande peligro" id="btn-salir">Cerrar sesión</button>
+        <div class="small muted" id="menu-info"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="barra">
+    <button data-ir="inicio" class="active">🏠<span>Inicio</span></button>
+    <button data-ir="hoy">📋<span>Hoy</span></button>
+    <button data-ir="alertas">⚠️<span>Alertas</span></button>
+    <button data-ir="menu">☰<span>Menú</span></button>
+  </nav>
+</div>
+
+<div id="toasts"></div>
+<script src="/chofer/app.js"></script>
+</body>
+</html>

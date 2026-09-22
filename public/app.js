@@ -202,8 +202,32 @@ function filaDespacho(d) {
   return `<tr data-did="${d.id}"><td class="mono muted">${d.id}</td><td class="mono">${fmtFecha(d.inicio)}</td><td>${esc(d.cisterna_codigo)}</td><td><b>${esc(d.equipo_codigo || '—')}</b>${!d.equipo_codigo ? `<div class="small muted mono">${esc(d.tag_rfid)}</div>` : ''}</td><td>${esc(d.operador || '—')}</td><td>${esc(d.chofer || '—')}</td>
     <td class="num mono">${fmtN(d.litros, 1)}</td><td class="num mono muted">${fmtN(d.pulsos)}</td><td class="num mono">${d.caudal_prom ? fmtN(d.caudal_prom, 1) : '—'}</td><td class="num mono">${d.horometro != null ? fmtN(d.horometro, 1) : '—'}</td>
     <td class="num mono">${d.nivel_antes != null ? fmtN(d.nivel_antes) : '—'} → ${d.nivel_despues != null ? fmtN(d.nivel_despues) : '—'}</td><td><span class="badge ${cl}">${tx}</span>${d.motivo && d.estado !== 'completado' ? `<div class="small muted">${esc(d.motivo)}</div>` : ''}</td>
-    <td>${d.n_alertas ? `<span class="badge alta">${d.n_alertas}</span>` : ''}</td><td class="mono small muted" title="${esc(d.hash || '')}">${d.hash ? d.hash.slice(0, 8) + '…' : ''}</td></tr>`;
+    <td>${d.n_alertas ? `<span class="badge alta">${d.n_alertas}</span> ` : ''}${d.confirmado === 2 ? '<span class="badge ok" title="Firmado por el operador en la tablet">✍ firmado</span>' : d.confirmado === 1 ? '<span class="badge neutro">confirmado</span>' : ''}${d.motivo === 'manual' ? ' <span class="badge media">manual</span>' : ''}</td><td class="mono small muted" title="${esc(d.hash || '')}">${d.hash ? d.hash.slice(0, 8) + '…' : ''}</td></tr>`;
 }
+// Detalle de un despacho (clic en la fila): alertas, confirmación y firma del operador.
+document.addEventListener('click', async e => {
+  const tr = e.target.closest('#tabla-despachos tr[data-did], #tabla-ultimos tr[data-did]'); if (!tr || e.target.closest('button')) return;
+  try {
+    const d = await api(`/despachos/${tr.dataset.did}`);
+    const [cl, tx] = ESTADO[d.estado] || ['neutro', d.estado];
+    modal(`<h2>Despacho #${d.id} <span class="badge ${cl}">${tx}</span></h2>
+      <div class="form-grid" style="margin-top:12px;font-size:13px">
+        <div><div class="muted small">Equipo</div><b>${esc(d.equipo_codigo || d.tag_rfid || '—')}</b><div class="small">${esc(d.equipo_nombre || '')}</div></div>
+        <div><div class="muted small">Litros</div><b>${fmtN(d.litros, 1)} L</b><div class="small muted">${fmtN(d.pulsos)} pulsos · ${d.caudal_prom ? fmtN(d.caudal_prom, 1) + ' L/min' : '—'}</div></div>
+        <div><div class="muted small">Cisterna / chofer</div><b>${esc(d.cisterna_codigo)}</b><div class="small">${esc(d.chofer || '—')}</div></div>
+        <div><div class="muted small">Operador</div><b>${esc(d.operador || '—')}</b></div>
+        <div><div class="muted small">Inicio → fin</div><b>${fmtFecha(d.inicio)}</b><div class="small">${fmtFecha(d.fin)}</div></div>
+        <div><div class="muted small">Horómetro</div><b>${d.horometro != null ? fmtN(d.horometro, 1) : '—'}</b><div class="small muted">anterior ${d.horometro_anterior != null ? fmtN(d.horometro_anterior, 1) : '—'}</div></div>
+        <div><div class="muted small">Nivel cisterna</div><b>${d.nivel_antes != null ? fmtN(d.nivel_antes) : '—'} → ${d.nivel_despues != null ? fmtN(d.nivel_despues) : '—'} L</b></div>
+        <div><div class="muted small">Hash</div><span class="mono small">${esc(d.hash || '—')}</span></div>
+      </div>
+      ${d.alertas.length ? `<h3 style="margin:14px 0 6px">Alertas</h3><div class="alertas-lista">${d.alertas.map(a => alertaHTML(a)).join('')}</div>` : ''}
+      <h3 style="margin:14px 0 6px">Confirmación en la tablet</h3>
+      ${d.confirmacion ? `<div class="small">Por <b>${esc(d.confirmacion.chofer_nombre || '—')}</b> el ${fmtFecha(d.confirmacion.ts)}${d.confirmacion.horometro != null ? ` · horómetro <b>${fmtN(d.confirmacion.horometro, 1)}</b>` : ''}${d.confirmacion.observacion ? ` · "${esc(d.confirmacion.observacion)}"` : ''}</div>
+        ${d.confirmacion.firma ? `<img src="${d.confirmacion.firma}" alt="firma" style="background:#fff;border-radius:8px;max-width:100%;max-height:160px;margin-top:8px">` : '<div class="small muted">Sin firma del operador</div>'}` : '<div class="small muted">Sin confirmar en la tablet</div>'}`, async () => {});
+    $('#modal-root .btn.primary').textContent = 'Cerrar';
+  } catch (err) { toast('Error', err.message, 'critica'); }
+});
 $('#f-estado').addEventListener('change', cargarDespachos); $('#f-equipo').addEventListener('change', cargarDespachos);
 $('#btn-csv').addEventListener('click', () => {
   const cols = ['id', 'inicio', 'fin', 'cisterna_codigo', 'equipo_codigo', 'tag_rfid', 'operador', 'chofer', 'litros', 'pulsos', 'caudal_prom', 'horometro', 'horometro_anterior', 'nivel_antes', 'nivel_despues', 'estado', 'motivo', 'n_alertas', 'hash'];

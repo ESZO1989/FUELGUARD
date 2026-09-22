@@ -1,0 +1,15 @@
+{
+  "name": "FuelGuard Chofer",
+  "short_name": "FG Chofer",
+  "description": "Tablet del camión cisterna: despachos en vivo, firma del operador, ticket y recargas",
+  "start_url": "/chofer/",
+  "scope": "/chofer/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111312",
+  "theme_color": "#1c5cab",
+  "lang": "es",
+  "icons": [
+    { "src": "/chofer/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

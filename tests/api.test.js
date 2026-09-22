@@ -160,6 +160,62 @@ test('respaldo manual crea un archivo y aparece en el listado', async () => {
   assert.ok(s.ultimo_respaldo);
 });
 
+// ---------- app del chofer ----------
+async function chofer() {
+  const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'chofer1', pin: '2222', recordar: true }) });
+  const j = await r.json();
+  assert.ok(new Date(j.expira) - Date.now() > 29 * 86400e3, 'sesión recordada de 30 días');
+  return j.token;
+}
+test('el chofer confirma un despacho con horómetro y firma; el horómetro habilita la regla de consumo', async () => {
+  const wl = (await dev('GET', '/api/dispositivo/whitelist')).data.equipos.find(e => e.codigo === 'CP-01');   // 150 L, 8 L/h
+  const ini = await dev('POST', '/api/dispositivo/despacho/inicio', { tag: wl.tag, lat: -16.409, lng: -71.5375, nivel: 7000 });   // sin horómetro (controlador sin CAN)
+  await dev('POST', '/api/dispositivo/despacho/fin', { despacho_id: ini.data.despacho_id, litros: 120, pulsos: 12000, nivel: 6880, motivo: 'normal' });
+  const tok = await chofer();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  const firma = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const r = await fetch(base + `/api/despachos/${ini.data.despacho_id}/confirmar`, { method: 'POST', headers: h, body: JSON.stringify({ horometro: wl.horometro + 2, firma, observacion: 'tanque casi vacío' }) });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.ok(j.alertas.includes('consumo_anomalo'));   // 120 L en 2 h = 60 L/h vs 8 nominal
+  const det = await (await fetch(base + `/api/despachos/${ini.data.despacho_id}`, { headers: h })).json();
+  assert.equal(det.confirmacion.firma, firma); assert.equal(det.confirmacion.chofer_nombre, 'Luis Paredes'); assert.equal(det.horometro, wl.horometro + 2);
+  const lista = await (await fetch(base + '/api/despachos?limite=5', { headers: h })).json();
+  assert.equal(lista.find(d => d.id === ini.data.despacho_id).confirmado, 2);
+});
+test('el chofer no puede confirmar despachos de otra cisterna', async () => {
+  const tok = await chofer();
+  const otro = await dev('POST', '/api/dispositivo/despacho/inicio', { tag: 'X' });   // rechazado en CIST-01, pero probamos con un despacho de CIST-02
+  const r2 = await fetch(base + '/api/dispositivo/despacho/inicio', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-key': 'dev-cist-02-k9' }, body: JSON.stringify({ tag: (await dev('GET', '/api/dispositivo/whitelist')).data.equipos[6].tag, lat: -16.409, lng: -71.5375, nivel: 3000 }) });
+  const d2 = await r2.json();
+  await fetch(base + '/api/dispositivo/despacho/fin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-key': 'dev-cist-02-k9' }, body: JSON.stringify({ despacho_id: d2.despacho_id, litros: 50, pulsos: 5000, nivel: 2950, motivo: 'normal' }) });
+  const r = await fetch(base + `/api/despachos/${d2.despacho_id}/confirmar`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ horometro: 1 }) });
+  assert.equal(r.status, 403);
+  assert.equal(otro.data.autorizado, false);
+});
+test('recarga registrada por el chofer actualiza el nivel de su cisterna', async () => {
+  const tok = await chofer();
+  const antes = (await dev('POST', '/api/dispositivo/heartbeat', {})).data.cisterna.nivel_actual;
+  const r = await (await fetch(base + '/api/recargas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ litros: 1000, guia: 'GR-777' }) })).json();
+  assert.equal(r.litros, 1000); assert.equal(r.nivel, Math.min(10000, antes + 1000));
+});
+test('despacho manual queda marcado, descuenta nivel y genera alerta', async () => {
+  const tok = await chofer();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  const eq = await (await fetch(base + '/api/equipos', { headers: h })).json();
+  const antes = (await dev('POST', '/api/dispositivo/heartbeat', {})).data.cisterna.nivel_actual;
+  const r = await fetch(base + '/api/despachos/manual', { method: 'POST', headers: h, body: JSON.stringify({ equipo_id: eq[0].id, litros: 90, horometro: eq[0].horometro + 4, motivo: 'Lector RFID no lee el tag' }) });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.equal(d.motivo, 'manual'); assert.equal(d.litros, 90); assert.equal(d.cisterna_codigo, 'CIST-01');
+  const despues = (await dev('POST', '/api/dispositivo/heartbeat', {})).data.cisterna.nivel_actual;
+  assert.equal(despues, antes - 90);
+  const al = await (await fetch(base + '/api/alertas?activas=1', { headers: h })).json();
+  assert.ok(al.some(a => a.tipo === 'despacho_manual' && a.despacho_id === d.id));
+  const exceso = await fetch(base + '/api/despachos/manual', { method: 'POST', headers: h, body: JSON.stringify({ equipo_id: eq[0].id, litros: 5000 }) });
+  assert.equal(exceso.status, 400);
+});
+
 test('cinco PIN incorrectos bloquean el usuario 15 minutos', async () => {
   const intento = () => fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'chofer2', pin: '0000' }) });
   for (let i = 0; i < 5; i++) assert.equal((await intento()).status, 401);
