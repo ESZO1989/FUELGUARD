@@ -16,9 +16,45 @@ function getDb() {
   db = new DatabaseSync(DB_PATH);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   crearEsquema(db);
-  if (estaVacia(db)) sembrar(db);
+  if (estaVacia(db)) (process.env.FUELGUARD_SEED === 'minimo' ? sembrarMinimo(db) : sembrar(db));
   migrar(db);
   return db;
+}
+
+// Semilla de producción: solo el administrador y los parámetros. Sin cisternas, equipos ni historial.
+function sembrarMinimo(db) {
+  const pin = /^\d{4,8}$/.test(process.env.FUELGUARD_ADMIN_PIN || '') ? process.env.FUELGUARD_ADMIN_PIN : String(100000 + crypto.randomInt(900000));
+  db.prepare('INSERT INTO usuarios (nombre, usuario, pin_hash, rol) VALUES (?,?,?,?)').run('Administrador', 'admin', hashPin(pin), 'admin');
+  const params = { ...PARAMETROS_BASE, empresa: process.env.FUELGUARD_EMPRESA || 'Mi Empresa', modo_demo: '0' };
+  const insP = db.prepare('INSERT INTO parametros (clave, valor) VALUES (?,?)');
+  for (const [k, v] of Object.entries(params)) insP.run(k, v);
+  console.log('='.repeat(64));
+  console.log(`Base de datos nueva en modo producción. Usuario: admin  PIN: ${pin}`);
+  console.log('Cambie el PIN desde Administración → Usuarios en el primer ingreso.');
+  console.log('='.repeat(64));
+}
+
+const PARAMETROS_BASE = {
+  moneda: 'USD', precio_litro: '1.20', tolerancia_descuadre_pct: '2', tolerancia_descuadre_l: '10', merma_umbral_l: '15',
+  horario_inicio: '0', horario_fin: '24', geocerca_lat: '0', geocerca_lng: '0', geocerca_radio_m: '3000',
+  factor_sobrellenado: '1.10', minutos_entre_despachos: '30', factor_consumo_anomalo: '1.35', precision_nivel_pct: '0.5', backup_hora: '2',
+};
+
+function generarClaveDispositivo(codigo) {
+  return `dev-${String(codigo || 'cist').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+// Copia consistente de la base (VACUUM INTO) y limpieza de respaldos antiguos.
+function respaldar(dir, conservar = 14) {
+  const d = getDb();
+  fs.mkdirSync(dir, { recursive: true });
+  const n = new Date(), p2 = v => String(v).padStart(2, '0');   // hora local en el nombre del archivo
+  const sello = `${n.getFullYear()}${p2(n.getMonth() + 1)}${p2(n.getDate())}-${p2(n.getHours())}${p2(n.getMinutes())}${p2(n.getSeconds())}`;
+  const destino = path.join(dir, `fuelguard-${sello}.db`);
+  d.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
+  const previos = fs.readdirSync(dir).filter(f => /^fuelguard-\d{8}-\d{6}\.db$/.test(f)).sort();
+  for (const f of previos.slice(0, Math.max(0, previos.length - conservar))) fs.unlinkSync(path.join(dir, f));
+  return destino;
 }
 
 function crearEsquema(db) {
@@ -136,7 +172,7 @@ function crearEsquema(db) {
 }
 
 // Migraciones idempotentes para bases creadas con versiones anteriores.
-const PARAMS_DEFECTO = { precision_nivel_pct: '0.5' };
+const PARAMS_DEFECTO = { precision_nivel_pct: '0.5', modo_demo: '1', backup_hora: '2' };
 function migrar(db) {
   const cols = db.prepare('PRAGMA table_info(despachos)').all().map(c => c.name);
   if (!cols.includes('ultimo_pulso')) db.exec('ALTER TABLE despachos ADD COLUMN ultimo_pulso TEXT');
@@ -191,6 +227,8 @@ function sembrar(db) {
     minutos_entre_despachos: '30',
     factor_consumo_anomalo: '1.35',
     precision_nivel_pct: '0.5',
+    backup_hora: '2',
+    modo_demo: '1',
   };
   const insP = db.prepare('INSERT INTO parametros (clave, valor) VALUES (?,?)');
   for (const [k, v] of Object.entries(params)) insP.run(k, v);
@@ -305,4 +343,4 @@ function setParametro(clave, valor) {
   getDb().prepare('INSERT INTO parametros (clave, valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor').run(clave, String(valor));
 }
 
-module.exports = { getDb, hashPin, param, paramNum, todosParametros, setParametro, DB_PATH };
+module.exports = { getDb, hashPin, param, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH };

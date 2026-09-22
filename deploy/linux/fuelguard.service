@@ -1,0 +1,25 @@
+[Unit]
+Description=FuelGuard - control de combustible
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fuelguard
+Group=fuelguard
+WorkingDirectory=/opt/fuelguard
+EnvironmentFile=/opt/fuelguard/.env
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=5
+# Endurecimiento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/fuelguard/data /opt/fuelguard/backups
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

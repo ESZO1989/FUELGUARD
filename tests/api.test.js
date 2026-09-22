@@ -1,6 +1,7 @@
 'use strict';
 // Prueba de integración de la API de dispositivos: ciclo completo de despacho, reenvío sin señal y cierre diferido.
 process.env.FUELGUARD_DB = require('node:path').join(require('node:os').tmpdir(), `fuelguard-api-${process.pid}.db`);
+process.env.BACKUP_DIR = require('node:path').join(require('node:os').tmpdir(), `fuelguard-backups-${process.pid}`);
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { servidor } = require('../server/index');
@@ -105,4 +106,68 @@ test('caída de nivel actual sin despacho genera alerta de merma', async () => {
 test('dispositivo no registrado es rechazado', async () => {
   const r = await fetch(base + '/api/dispositivo/whitelist', { headers: { 'x-device-key': 'nope' } });
   assert.equal(r.status, 401);
+});
+
+// ---------- producción ----------
+test('salud y publico responden sin autenticación con cabeceras de seguridad', async () => {
+  const r = await fetch(base + '/api/salud');
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  assert.ok(r.headers.get('content-security-policy').includes("frame-ancestors 'none'"));
+  const s = await r.json(); assert.equal(s.ok, true); assert.ok(s.cisternas >= 2);
+  const p = await (await fetch(base + '/api/publico')).json();
+  assert.equal(p.modo_demo, true);
+});
+
+test('crear cisterna entrega la clave una sola vez, editar y rotar clave', async () => {
+  const tok = await admin();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  const nueva = await (await fetch(base + '/api/cisternas', { method: 'POST', headers: h, body: JSON.stringify({ codigo: 'cist-03', placa: 'TST-001', capacidad: 8000 }) })).json();
+  assert.equal(nueva.codigo, 'cist-03'); assert.ok(nueva.device_key.startsWith('dev-cist-03-'));
+  const lista = await (await fetch(base + '/api/cisternas', { headers: h })).json();
+  const c = lista.find(x => x.id === nueva.id);
+  assert.ok(c.device_key.endsWith('…') && c.device_key.length < nueva.device_key.length);   // enmascarada
+  const wl = await dev('GET', '/api/dispositivo/whitelist');   // la clave nueva funciona como dispositivo
+  const r = await fetch(base + '/api/dispositivo/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-key': nueva.device_key }, body: '{}' });
+  assert.equal((await r.json()).cisterna.codigo, 'CIST-03'); assert.equal(wl.status, 200);
+  const ed = await fetch(base + `/api/cisternas/${nueva.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ placa: 'TST-002', k_factor: 98.5 }) });
+  assert.equal(ed.status, 200);
+  const rot = await (await fetch(base + `/api/cisternas/${nueva.id}/rotar-clave`, { method: 'POST', headers: h })).json();
+  assert.notEqual(rot.device_key, nueva.device_key);
+  const viejo = await fetch(base + '/api/dispositivo/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-key': nueva.device_key }, body: '{}' });
+  assert.equal(viejo.status, 401);
+  const dup = await fetch(base + '/api/cisternas', { method: 'POST', headers: h, body: JSON.stringify({ codigo: 'CIST-03', placa: 'X', capacidad: 1 }) });
+  assert.equal(dup.status, 409);
+});
+
+test('supervisor no puede crear cisternas ni ver claves', async () => {
+  const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'supervisor', pin: '1111' }) });
+  const tok = (await r.json()).token;
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  assert.equal((await fetch(base + '/api/cisternas', { method: 'POST', headers: h, body: JSON.stringify({ codigo: 'X', placa: 'X', capacidad: 1 }) })).status, 403);
+  const lista = await (await fetch(base + '/api/cisternas', { headers: h })).json();
+  assert.equal(lista[0].device_key, undefined);
+});
+
+test('respaldo manual crea un archivo y aparece en el listado', async () => {
+  const tok = await admin();
+  const h = { Authorization: 'Bearer ' + tok };
+  const r = await (await fetch(base + '/api/respaldos', { method: 'POST', headers: h })).json();
+  assert.ok(/^fuelguard-\d{8}-\d{6}\.db$/.test(r.archivo));
+  const l = await (await fetch(base + '/api/respaldos', { headers: h })).json();
+  assert.ok(l.archivos.some(a => a.nombre === r.archivo && a.bytes > 10000));
+  const s = await (await fetch(base + '/api/salud')).json();
+  assert.ok(s.ultimo_respaldo);
+});
+
+test('cinco PIN incorrectos bloquean el usuario 15 minutos', async () => {
+  const intento = () => fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'chofer2', pin: '0000' }) });
+  for (let i = 0; i < 5; i++) assert.equal((await intento()).status, 401);
+  const bloqueado = await intento();
+  assert.equal(bloqueado.status, 429);
+  const correcto = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'chofer2', pin: '3333' }) });
+  assert.equal(correcto.status, 429);   // también con el PIN correcto mientras dura el bloqueo
+  const tok = await admin();
+  const aud = await (await fetch(base + '/api/auditoria', { headers: { Authorization: 'Bearer ' + tok } })).json();
+  assert.ok(aud.some(a => a.accion === 'login_bloqueado'));
 });

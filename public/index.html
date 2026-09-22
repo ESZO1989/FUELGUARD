@@ -233,8 +233,18 @@
         <div class="nota"><b>Roles:</b> <b>admin</b> todo · <b>supervisor</b> ve todo y resuelve alertas · <b>chofer</b> ve solo su cisterna · <b>operador</b> ve solo el consumo de sus equipos.</div>
       </div>
       <div class="card">
+        <div class="card-head"><h2>Cisternas y claves de dispositivo</h2><button class="btn small primary" id="btn-nueva-cisterna">+ Nueva cisterna</button></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Código</th><th>Placa</th><th>Chofer</th><th class="num">Capacidad</th><th class="num">K-factor</th><th class="num">Caudal min–max</th><th>Clave dispositivo</th><th>Estado</th><th></th></tr></thead><tbody id="tabla-cisternas-admin"></tbody></table></div>
+        <div class="nota">La clave completa del dispositivo solo se muestra al crear la cisterna o al rotarla: cópiela en <code>DEVICE_KEY</code> del firmware del controlador. Rotarla desconecta el controlador hasta que se regrabe con la nueva.</div>
+      </div>
+      <div class="card">
         <div class="card-head"><h2>Parámetros de las reglas antirrobo</h2><button class="btn small primary" id="btn-guardar-params">Guardar</button></div>
         <div class="form-grid" id="form-params"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Respaldos de la base de datos</h2><button class="btn small primary" id="btn-respaldar">Respaldar ahora</button></div>
+        <div class="small muted" id="respaldos-info"></div>
+        <div class="tabla-wrap" style="margin-top:8px"><table><thead><tr><th>Archivo</th><th class="num">Tamaño</th><th>Fecha</th></tr></thead><tbody id="tabla-respaldos"></tbody></table></div>
       </div>
       <div class="card">
         <div class="card-head"><h2>Auditoría</h2></div>

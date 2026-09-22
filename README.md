@@ -65,7 +65,8 @@ simulator/          emulador del controlador de cisterna (mismo protocolo que el
 firmware/           firmware real del controlador (ESP32 + SIM7600, PlatformIO) — ver firmware/README.md
 public/             dashboard (HTML/CSS/JS, Chart.js por CDN)
 docs/               hardware, costos y funcionamiento
-tests/              pruebas del motor de reglas (node --test)
+tests/              pruebas del motor de reglas y de la API (node --test)
+deploy/             Caddyfile, servicio systemd, instalador Windows; Dockerfile y docker-compose en la raíz
 ```
 
 ## Protocolo del dispositivo
@@ -86,7 +87,12 @@ Cabecera `x-device-key: <clave de la cisterna>`.
 
 ## Puesta en producción
 
-1. Cambiar las `device_key` de las cisternas y los PIN de los usuarios demo (Administración).
-2. Configurar geocerca, horario y precio del litro en Parámetros.
-3. Publicar detrás de HTTPS (Caddy/Nginx) en un VPS o servidor local; `PORT` y `FUELGUARD_DB` son variables de entorno.
-4. Para más de ~5 cisternas o retención de años, migrar `server/db.js` a PostgreSQL (las consultas son SQL estándar).
+Guía completa en [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) (Linux con systemd + Caddy, Docker, o Windows como tarea programada). Resumen:
+
+1. Copie `.env.example` a `.env` con `FUELGUARD_SEED=minimo` (base sin datos de prueba, solo admin) y arranque con `npm run start:prod`.
+2. Cree las cisternas en Administración → Cisternas: cada una entrega su clave de dispositivo para el firmware. Cambie el PIN del admin.
+3. Ponga HTTPS con Caddy ([deploy/Caddyfile](deploy/Caddyfile)) o `TLS_CERT`/`TLS_KEY`.
+4. Arranque automático: `deploy/linux/instalar.sh` (systemd) o `deploy/windows/instalar-servicio.ps1`.
+5. Respaldos: automáticos a diario, `npm run backup`, o el botón en Administración. `GET /api/salud` para monitoreo.
+
+Incluido de serie: bloqueo por intentos de PIN, cabeceras de seguridad (CSP, HSTS), auditoría y hash encadenado de despachos.

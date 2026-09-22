@@ -278,9 +278,16 @@ async function modalEquipo(e) {
 }
 
 // ------------------------------------------------------------------ ADMIN
-const PARAM_LABELS = { empresa: 'Nombre del proyecto/empresa', moneda: 'Moneda', precio_litro: 'Precio por litro', tolerancia_descuadre_pct: 'Tolerancia descuadre (%)', tolerancia_descuadre_l: 'Tolerancia descuadre (L)', merma_umbral_l: 'Umbral merma cisterna (L)', horario_inicio: 'Hora inicio despachos', horario_fin: 'Hora fin despachos', geocerca_lat: 'Geocerca latitud', geocerca_lng: 'Geocerca longitud', geocerca_radio_m: 'Radio geocerca (m)', factor_sobrellenado: 'Factor sobrellenado (1.10 = +10%)', minutos_entre_despachos: 'Minutos mínimos entre despachos', factor_consumo_anomalo: 'Factor consumo anómalo (1.35 = +35%)', precision_nivel_pct: 'Precisión sensor de nivel (% capacidad)' };
+const PARAM_LABELS = { empresa: 'Nombre del proyecto/empresa', modo_demo: 'Modo demo (1 = muestra usuarios de prueba en el login)', backup_hora: 'Hora del respaldo automático (0-23)', moneda: 'Moneda', precio_litro: 'Precio por litro', tolerancia_descuadre_pct: 'Tolerancia descuadre (%)', tolerancia_descuadre_l: 'Tolerancia descuadre (L)', merma_umbral_l: 'Umbral merma cisterna (L)', horario_inicio: 'Hora inicio despachos', horario_fin: 'Hora fin despachos', geocerca_lat: 'Geocerca latitud', geocerca_lng: 'Geocerca longitud', geocerca_radio_m: 'Radio geocerca (m)', factor_sobrellenado: 'Factor sobrellenado (1.10 = +10%)', minutos_entre_despachos: 'Minutos mínimos entre despachos', factor_consumo_anomalo: 'Factor consumo anómalo (1.35 = +35%)', precision_nivel_pct: 'Precisión sensor de nivel (% capacidad)' };
 async function cargarAdmin() {
-  const [us, params, aud] = await Promise.all([api('/usuarios'), api('/parametros'), api('/auditoria')]);
+  const [us, params, aud, cis, resp] = await Promise.all([api('/usuarios'), api('/parametros'), api('/auditoria'), api('/cisternas'), api('/respaldos').catch(() => null)]);
+  S.cisternasAdmin = cis;
+  $('#tabla-cisternas-admin').innerHTML = cis.map(c => `<tr><td><b>${esc(c.codigo)}</b></td><td>${esc(c.placa)}</td><td>${esc(c.chofer || '—')}</td><td class="num mono">${fmtN(c.capacidad)} L</td><td class="num mono">${c.k_factor} p/L</td><td class="num mono">${c.caudal_min}–${c.caudal_max}</td><td class="mono small">${esc(c.device_key || '')}</td><td><span class="estado-linea ${c.en_linea ? 'on' : ''}">${c.en_linea ? 'en línea' : 'sin señal'}</span></td>
+    <td style="white-space:nowrap"><button class="btn small" data-editar-cisterna="${c.id}">Editar</button> <button class="btn small" data-rotar-clave="${c.id}">Rotar clave</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Sin cisternas. Cree la primera para obtener la clave del controlador.</td></tr>';
+  if (resp) {
+    $('#respaldos-info').textContent = `Carpeta: ${resp.dir} · se conservan los últimos ${resp.conservar || 14} · automático a las ${params.backup_hora || 2}:00`;
+    $('#tabla-respaldos').innerHTML = resp.archivos.map(a => `<tr><td class="mono small">${esc(a.nombre)}</td><td class="num mono">${fmtN(a.bytes / 1024)} KB</td><td class="small">${fmtFecha(a.fecha)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Aún no hay respaldos</td></tr>';
+  }
   $('#tabla-usuarios').innerHTML = us.map(u => `<tr><td><b>${esc(u.nombre)}</b></td><td class="mono">${esc(u.usuario)}</td><td><span class="badge neutro">${ROL_NOMBRE[u.rol]}</span></td><td class="small">${esc(u.cisterna || u.equipos || '—')}</td><td><span class="badge ${u.activo ? 'ok' : 'neutro'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td><td><button class="btn small" data-editar-usuario="${u.id}">Editar</button></td></tr>`).join('');
   S.usuariosAdmin = us;
   $('#form-params').innerHTML = Object.entries(PARAM_LABELS).map(([k, l]) => `<div class="field"><label>${l}</label><input name="${k}" value="${esc(params[k] ?? '')}"></div>`).join('');
@@ -291,6 +298,40 @@ $('#btn-guardar-params').addEventListener('click', async () => {
   try { await api('/parametros', { method: 'PUT', body: datos }); S.params = { ...S.params, empresa: datos.empresa, moneda: datos.moneda, precio_litro: Number(datos.precio_litro) }; $('#empresa').textContent = datos.empresa; toast('Parámetros guardados', 'Las reglas usan los nuevos valores de inmediato', 'ok'); }
   catch (e) { toast('Error', e.message, 'critica'); }
 });
+$('#btn-respaldar').addEventListener('click', async () => { try { const r = await api('/respaldos', { method: 'POST' }); toast('Respaldo creado', r.archivo, 'ok'); cargarAdmin(); } catch (e) { toast('Error', e.message, 'critica'); } });
+$('#btn-nueva-cisterna').addEventListener('click', () => modalCisterna(null));
+document.addEventListener('click', async e => {
+  const ed = e.target.closest('[data-editar-cisterna]'); if (ed) return modalCisterna(S.cisternasAdmin.find(c => c.id === Number(ed.dataset.editarCisterna)));
+  const ro = e.target.closest('[data-rotar-clave]'); if (!ro) return;
+  const c = S.cisternasAdmin.find(x => x.id === Number(ro.dataset.rotarClave));
+  if (!confirm(`¿Rotar la clave de ${c.codigo}? El controlador dejará de reportar hasta que se regrabe con la nueva clave.`)) return;
+  try { const r = await api(`/cisternas/${c.id}/rotar-clave`, { method: 'POST' }); mostrarClave(r.codigo, r.device_key); cargarAdmin(); } catch (err) { toast('Error', err.message, 'critica'); }
+});
+function mostrarClave(codigo, clave) {
+  modal(`<h2>Clave del dispositivo · ${esc(codigo)}</h2><p class="small muted">Cópiela ahora en <code>DEVICE_KEY</code> (firmware/include/config.h). No volverá a mostrarse completa.</p>
+    <div class="field"><label>device_key</label><input class="mono" value="${esc(clave)}" readonly onclick="this.select()"></div>`, async () => {});
+  $('#modal-root .btn.primary').textContent = 'Entendido';
+}
+async function modalCisterna(c) {
+  const usuarios = await api('/usuarios').catch(() => []);
+  const choferes = usuarios.filter(u => u.rol === 'chofer' && u.activo);
+  modal(`<h2>${c ? 'Editar cisterna ' + esc(c.codigo) : 'Nueva cisterna'}</h2><div class="form-grid" style="margin-top:12px">
+    ${c ? '' : '<div class="field"><label>Código</label><input name="codigo" required placeholder="CIST-03"></div>'}
+    <div class="field"><label>Placa</label><input name="placa" required value="${esc(c?.placa || '')}"></div>
+    <div class="field"><label>Capacidad (L)</label><input name="capacidad" type="number" required value="${c?.capacidad || ''}"></div>
+    <div class="field"><label>Nivel actual (L)</label><input name="nivel_actual" type="number" value="${c?.nivel_actual ?? 0}"></div>
+    <div class="field"><label>Chofer</label><select name="chofer_id"><option value="">— sin asignar —</option>${choferes.map(u => `<option value="${u.id}" ${c?.chofer_id === u.id ? 'selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></div>
+    <div class="field"><label>K-factor (pulsos/L)</label><input name="k_factor" type="number" step="0.01" value="${c?.k_factor || 100}"></div>
+    <div class="field"><label>Caudal mínimo (L/min)</label><input name="caudal_min" type="number" value="${c?.caudal_min || 10}"></div>
+    <div class="field"><label>Caudal máximo (L/min)</label><input name="caudal_max" type="number" value="${c?.caudal_max || 120}"></div></div>`,
+    async datos => {
+      for (const k of ['capacidad', 'nivel_actual', 'k_factor', 'caudal_min', 'caudal_max']) if (k in datos) datos[k] = Number(datos[k]);
+      datos.chofer_id = datos.chofer_id ? Number(datos.chofer_id) : null;
+      const r = await api(c ? `/cisternas/${c.id}` : '/cisternas', { method: c ? 'PUT' : 'POST', body: datos });
+      toast('Cisterna guardada', datos.placa, 'ok'); cargarAdmin();
+      if (!c) setTimeout(() => mostrarClave(r.codigo, r.device_key), 50);
+    });
+}
 $('#btn-nuevo-usuario').addEventListener('click', () => modalUsuario(null));
 document.addEventListener('click', e => { const b = e.target.closest('[data-editar-usuario]'); if (b) modalUsuario(S.usuariosAdmin.find(x => x.id === Number(b.dataset.editarUsuario))); });
 function modalUsuario(u) {
@@ -417,5 +458,6 @@ $('#btn-tema').addEventListener('click', () => {
 });
 if (localStorage.getItem('fg_tema') === 'light') { document.documentElement.dataset.theme = 'light'; $('#btn-tema').textContent = 'Tema oscuro'; }
 
-// arranque
+// arranque: el listado de usuarios demo solo se muestra si el servidor está en modo demo
+fetch('/api/publico').then(r => r.json()).then(p => { $('#demo-users').classList.toggle('hidden', !p.modo_demo); if (p.empresa) $('#empresa').textContent = p.empresa; }).catch(() => $('#demo-users').classList.add('hidden'));
 if (S.token) iniciar().catch(() => cerrarSesion(false));

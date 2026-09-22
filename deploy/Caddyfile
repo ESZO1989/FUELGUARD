@@ -1,0 +1,23 @@
+# Caddy como proxy inverso con HTTPS automático (Let's Encrypt).
+# Requisitos: dominio apuntando a la IP pública del servidor, puertos 80 y 443 abiertos.
+# Instalación: https://caddyserver.com/docs/install  ·  Arranque: caddy run --config /etc/caddy/Caddyfile
+#
+# Sustituya combustible.miempresa.com por su dominio. FuelGuard debe escuchar en 127.0.0.1:3000 (HOST=127.0.0.1, TRUST_PROXY=1).
+
+combustible.miempresa.com {
+    encode gzip
+    reverse_proxy 127.0.0.1:3000 {
+        # Server-Sent Events: sin buffer ni tiempo máximo de respuesta
+        flush_interval -1
+        transport http {
+            read_timeout 0
+        }
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        -Server
+    }
+    log {
+        output file /var/log/caddy/fuelguard.log
+    }
+}

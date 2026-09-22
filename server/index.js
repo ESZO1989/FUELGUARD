@@ -5,12 +5,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { URL } = require('node:url');
-const { getDb, hashPin, paramNum, todosParametros, setParametro } = require('./db');
+const { getDb, hashPin, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH } = require('./db');
 const reglas = require('./rules');
 
 const PUERTO = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || '0.0.0.0';
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';          // detrás de Caddy/Nginx: IP real en X-Forwarded-For
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '..', 'backups');
+const BACKUP_KEEP = Number(process.env.BACKUP_KEEP || 14);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const db = getDb();
+const ARRANQUE = Date.now();
+
+// Cabeceras de seguridad para todas las respuestas. CSP permite Chart.js desde cdnjs y estilos en línea del dashboard.
+const CABECERAS_SEG = {
+  'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin',
+  'Permissions-Policy': 'geolocation=(), camera=(), microphone=()',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+};
+if (process.env.TLS_CERT || TRUST_PROXY) CABECERAS_SEG['Strict-Transport-Security'] = 'max-age=31536000';
 
 // ------------------------------------------------------------------
 // Utilidades
@@ -22,9 +35,17 @@ const r1 = n => Math.round(n * 10) / 10;
 
 function json(res, codigo, cuerpo) {
   const data = JSON.stringify(cuerpo);
-  res.writeHead(codigo, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.writeHead(codigo, { ...CABECERAS_SEG, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(data);
 }
+function ipDe(req) {
+  const xf = TRUST_PROXY ? String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() : '';
+  return xf || req.socket.remoteAddress || '';
+}
+// Bloqueo por intentos fallidos de PIN: 5 fallos por IP+usuario → 15 minutos.
+const intentosLogin = new Map();
+const LOGIN_MAX_FALLOS = 5, LOGIN_BLOQUEO_MS = 15 * 60e3;
+setInterval(() => { const ahora = Date.now(); for (const [k, v] of intentosLogin) if (v.hasta && v.hasta < ahora) intentosLogin.delete(k); }, 60e3).unref();
 class HttpError extends Error { constructor(codigo, msg) { super(msg); this.codigo = codigo; } }
 
 function leerCuerpo(req) {
@@ -148,10 +169,24 @@ function ruta(metodo, patron, manejador) {
 }
 
 // --- Autenticación ---
-ruta('POST', '/api/login', async ({ cuerpo }) => {
+ruta('GET', '/api/publico', async () => {
+  const p = todosParametros();
+  return { empresa: p.empresa, modo_demo: p.modo_demo === '1', version: require('../package.json').version };
+});
+ruta('POST', '/api/login', async ({ cuerpo, req }) => {
   const { usuario, pin } = cuerpo;
-  const u = db.prepare('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1').get(String(usuario || '').trim().toLowerCase());
-  if (!u || u.pin_hash !== hashPin(pin)) throw new HttpError(401, 'Usuario o PIN incorrecto');
+  const login = String(usuario || '').trim().toLowerCase();
+  const clave = `${ipDe(req)}|${login}`;
+  const reg = intentosLogin.get(clave) || { fallos: 0, hasta: 0 };
+  if (reg.hasta > Date.now()) throw new HttpError(429, `Demasiados intentos. Espere ${Math.ceil((reg.hasta - Date.now()) / 60e3)} min.`);
+  const u = db.prepare('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1').get(login);
+  if (!u || u.pin_hash !== hashPin(pin)) {
+    reg.fallos++;
+    if (reg.fallos >= LOGIN_MAX_FALLOS) { reg.hasta = Date.now() + LOGIN_BLOQUEO_MS; reg.fallos = 0; q.insAuditoria.run(ahoraISO(), u ? u.id : null, 'login_bloqueado', `${login} desde ${ipDe(req)}`); }
+    intentosLogin.set(clave, reg);
+    throw new HttpError(401, 'Usuario o PIN incorrecto');
+  }
+  intentosLogin.delete(clave);
   const token = crypto.randomBytes(24).toString('hex');
   const expira = new Date(Date.now() + 12 * 3600e3).toISOString();
   db.prepare('INSERT INTO sesiones (token, usuario_id, creado, expira) VALUES (?,?,?,?)').run(token, u.id, ahoraISO(), expira);
@@ -337,11 +372,79 @@ ruta('PUT', '/api/equipos/:id', async ({ usuario, params, cuerpo }) => {
 });
 ruta('GET', '/api/cisternas', async ({ usuario }) => {
   const u = requerir(usuario, 'admin', 'supervisor', 'chofer');
-  let lista = db.prepare(`SELECT c.id, c.codigo, c.placa, c.capacidad, c.nivel_actual, c.k_factor, c.caudal_min, c.caudal_max, c.lat, c.lng, c.ultima_lectura, c.en_linea, u.nombre AS chofer, c.chofer_id
+  let lista = db.prepare(`SELECT c.id, c.codigo, c.placa, c.capacidad, c.nivel_actual, c.k_factor, c.caudal_min, c.caudal_max, c.lat, c.lng, c.ultima_lectura, c.en_linea, u.nombre AS chofer, c.chofer_id, c.device_key
     FROM cisternas c LEFT JOIN usuarios u ON u.id = c.chofer_id ORDER BY c.codigo`).all();
   if (u.rol === 'chofer') lista = lista.filter(c => c.id === u.cisterna_id);
+  for (const c of lista) c.device_key = u.rol === 'admin' ? c.device_key.slice(0, 8) + '…' : undefined;   // la clave completa solo se muestra al crearla o rotarla
   return lista;
 });
+const CAMPOS_CISTERNA = ['placa', 'capacidad', 'chofer_id', 'k_factor', 'caudal_min', 'caudal_max', 'nivel_actual'];
+ruta('POST', '/api/cisternas', async ({ usuario, cuerpo }) => {
+  const u = requerir(usuario, 'admin');
+  const { codigo, placa, capacidad } = cuerpo;
+  if (!codigo || !placa || !(Number(capacidad) > 0)) throw new HttpError(400, 'codigo, placa y capacidad son obligatorios');
+  const device_key = generarClaveDispositivo(codigo);
+  try {
+    const r = db.prepare(`INSERT INTO cisternas (codigo, placa, capacidad, nivel_actual, chofer_id, device_key, k_factor, caudal_min, caudal_max) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(String(codigo).toUpperCase().trim(), placa, Number(capacidad), Number(cuerpo.nivel_actual || 0), cuerpo.chofer_id || null, device_key, Number(cuerpo.k_factor || 100), Number(cuerpo.caudal_min || 10), Number(cuerpo.caudal_max || 120));
+    q.insAuditoria.run(ahoraISO(), u.id, 'crear_cisterna', codigo);
+    emitir('catalogo', { entidad: 'cisternas' });
+    return { id: Number(r.lastInsertRowid), codigo, device_key };   // única vez que se entrega la clave completa
+  } catch (e) { if (/UNIQUE/.test(e.message)) throw new HttpError(409, 'El código de cisterna ya existe'); throw e; }
+});
+ruta('PUT', '/api/cisternas/:id', async ({ usuario, params, cuerpo }) => {
+  const u = requerir(usuario, 'admin');
+  const c = q.cisternaPorId.get(Number(params.id)); if (!c) throw new HttpError(404, 'Cisterna no encontrada');
+  const sets = [], vals = [];
+  for (const k of CAMPOS_CISTERNA) if (k in cuerpo) { sets.push(`${k} = ?`); vals.push(cuerpo[k] === '' ? null : cuerpo[k]); }
+  if (!sets.length) throw new HttpError(400, 'Nada que actualizar');
+  db.prepare(`UPDATE cisternas SET ${sets.join(', ')} WHERE id = ?`).run(...vals, c.id);
+  q.insAuditoria.run(ahoraISO(), u.id, 'editar_cisterna', `${c.codigo}: ${Object.keys(cuerpo).join(',')}`);
+  emitir('catalogo', { entidad: 'cisternas' });
+  return { ok: true };
+});
+ruta('POST', '/api/cisternas/:id/rotar-clave', async ({ usuario, params }) => {
+  const u = requerir(usuario, 'admin');
+  const c = q.cisternaPorId.get(Number(params.id)); if (!c) throw new HttpError(404, 'Cisterna no encontrada');
+  const device_key = generarClaveDispositivo(c.codigo);
+  db.prepare('UPDATE cisternas SET device_key = ?, en_linea = 0 WHERE id = ?').run(device_key, c.id);
+  q.insAuditoria.run(ahoraISO(), u.id, 'rotar_clave_dispositivo', c.codigo);
+  return { codigo: c.codigo, device_key };
+});
+ruta('GET', '/api/salud', async () => {
+  const cis = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(en_linea),0) AS en_linea FROM cisternas').get();
+  return { ok: true, version: require('../package.json').version, uptime_s: Math.round((Date.now() - ARRANQUE) / 1000), cisternas: cis.n, cisternas_en_linea: cis.en_linea, clientes_sse: clientesSSE.size, ultimo_respaldo: ultimoRespaldo };
+});
+ruta('GET', '/api/respaldos', async ({ usuario }) => {
+  requerir(usuario, 'admin');
+  if (!fs.existsSync(BACKUP_DIR)) return { dir: BACKUP_DIR, archivos: [] };
+  const archivos = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.db')).sort().reverse().map(f => { const st = fs.statSync(path.join(BACKUP_DIR, f)); return { nombre: f, bytes: st.size, fecha: st.mtime.toISOString() }; });
+  return { dir: BACKUP_DIR, conservar: BACKUP_KEEP, archivos };
+});
+ruta('POST', '/api/respaldos', async ({ usuario }) => {
+  const u = requerir(usuario, 'admin');
+  const destino = ejecutarRespaldo('manual');
+  q.insAuditoria.run(ahoraISO(), u.id, 'respaldo', destino);
+  return { ok: true, archivo: path.basename(destino) };
+});
+let ultimoRespaldo = null;
+function ejecutarRespaldo(origen) {
+  const destino = respaldar(BACKUP_DIR, BACKUP_KEEP);
+  ultimoRespaldo = ahoraISO();
+  console.log(`[respaldo ${origen}] ${destino}`);
+  return destino;
+}
+// Respaldo automático diario a la hora configurada (parámetro backup_hora, hora local).
+let ultimoDiaRespaldado = null;
+setInterval(() => {
+  const ahora = new Date();
+  const hoy = ahora.toDateString();
+  if (ahora.getHours() === paramNum('backup_hora', 2) && ultimoDiaRespaldado !== hoy) {
+    ultimoDiaRespaldado = hoy;
+    try { ejecutarRespaldo('automático'); } catch (e) { console.error('[respaldo] falló:', e.message); }
+  }
+}, 60e3).unref();
+
 ruta('GET', '/api/usuarios', async ({ usuario }) => {
   requerir(usuario, 'admin', 'supervisor');
   return db.prepare(`SELECT u.id, u.nombre, u.usuario, u.rol, u.activo, u.creado,
@@ -377,7 +480,7 @@ ruta('PUT', '/api/usuarios/:id', async ({ usuario, params, cuerpo }) => {
 ruta('GET', '/api/parametros', async ({ usuario }) => { requerir(usuario, 'admin', 'supervisor'); return todosParametros(); });
 ruta('PUT', '/api/parametros', async ({ usuario, cuerpo }) => {
   const u = requerir(usuario, 'admin');
-  const permitidas = ['empresa', 'moneda', 'precio_litro', 'tolerancia_descuadre_pct', 'tolerancia_descuadre_l', 'merma_umbral_l', 'horario_inicio', 'horario_fin', 'geocerca_lat', 'geocerca_lng', 'geocerca_radio_m', 'factor_sobrellenado', 'minutos_entre_despachos', 'factor_consumo_anomalo', 'precision_nivel_pct'];
+  const permitidas = ['empresa', 'moneda', 'precio_litro', 'tolerancia_descuadre_pct', 'tolerancia_descuadre_l', 'merma_umbral_l', 'horario_inicio', 'horario_fin', 'geocerca_lat', 'geocerca_lng', 'geocerca_radio_m', 'factor_sobrellenado', 'minutos_entre_despachos', 'factor_consumo_anomalo', 'precision_nivel_pct', 'backup_hora', 'modo_demo'];
   for (const [k, v] of Object.entries(cuerpo)) if (permitidas.includes(k)) setParametro(k, v);
   q.insAuditoria.run(ahoraISO(), u.id, 'editar_parametros', JSON.stringify(cuerpo));
   return todosParametros();
@@ -582,15 +685,17 @@ function servirEstatico(url, res) {
   if (!archivo.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(archivo, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(archivo)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { ...CABECERAS_SEG, 'Content-Type': MIME[path.extname(archivo)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(data);
   });
 }
 
 // ------------------------------------------------------------------
-// Servidor
+// Servidor (HTTP, o HTTPS nativo si se definen TLS_CERT y TLS_KEY; detrás de Caddy/Nginx basta HTTP + TRUST_PROXY=1)
 // ------------------------------------------------------------------
-const servidor = http.createServer(async (req, res) => {
+const TLS = process.env.TLS_CERT && process.env.TLS_KEY ? { cert: fs.readFileSync(process.env.TLS_CERT), key: fs.readFileSync(process.env.TLS_KEY) } : null;
+const crearServidor = TLS ? h => require('node:https').createServer(TLS, h) : h => http.createServer(h);
+const servidor = crearServidor(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-device-key', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE' }); return res.end(); }
   if (!url.pathname.startsWith('/api/')) return servirEstatico(url, res);
@@ -611,10 +716,11 @@ const servidor = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
-  servidor.listen(PUERTO, () => {
-    console.log(`FuelGuard escuchando en http://localhost:${PUERTO}`);
-    console.log(`Base de datos: ${require('./db').DB_PATH}`);
-    console.log('Usuarios demo: admin/1234, supervisor/1111, chofer1/2222, jtorres/4444 (operador)');
+  servidor.listen(PUERTO, HOST, () => {
+    console.log(`FuelGuard v${require('../package.json').version} escuchando en ${TLS ? 'https' : 'http'}://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PUERTO}${TRUST_PROXY ? ' (detrás de proxy)' : ''}`);
+    console.log(`Base de datos: ${DB_PATH} · respaldos en ${BACKUP_DIR} (diario a las ${paramNum('backup_hora', 2)}:00, conserva ${BACKUP_KEEP})`);
+    if (todosParametros().modo_demo === '1') console.log('MODO DEMO: usuarios admin/1234, supervisor/1111, chofer1/2222, jtorres/4444. Para producción use FUELGUARD_SEED=minimo con una base nueva.');
   });
+  process.on('SIGTERM', () => { console.log('Cerrando…'); servidor.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); });
 }
 module.exports = { servidor, emitir };

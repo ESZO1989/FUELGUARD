@@ -1,0 +1,38 @@
+# FuelGuard + Caddy (HTTPS automático). Uso:
+#   1. Edite deploy/Caddyfile con su dominio.
+#   2. docker compose up -d
+#   3. PIN inicial del admin: docker compose logs fuelguard | grep PIN
+services:
+  fuelguard:
+    build: .
+    restart: unless-stopped
+    environment:
+      FUELGUARD_SEED: minimo
+      FUELGUARD_EMPRESA: "Mi Empresa"
+      TRUST_PROXY: "1"
+      BACKUP_KEEP: "14"
+    volumes:
+      - fuelguard-data:/app/data
+      - fuelguard-backups:/app/backups
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - fuelguard
+    # En el Caddyfile, reverse_proxy debe apuntar a fuelguard:3000 cuando se usa compose.
+
+volumes:
+  fuelguard-data:
+  fuelguard-backups:
+  caddy-data:
+  caddy-config:
