@@ -182,7 +182,7 @@ function crearEsquema(db) {
 }
 
 // Migraciones idempotentes para bases creadas con versiones anteriores.
-const PARAMS_DEFECTO = { precision_nivel_pct: '0.5', modo_demo: '1', backup_hora: '2' };
+const PARAMS_DEFECTO = { precision_nivel_pct: '0.5', modo_demo: '1', backup_hora: '2', reporte_destinatarios: '', reporte_hora: '6', reporte_diario: '1', reporte_semanal: '1', reporte_mensual: '1' };
 function migrar(db) {
   const cols = db.prepare('PRAGMA table_info(despachos)').all().map(c => c.name);
   if (!cols.includes('ultimo_pulso')) db.exec('ALTER TABLE despachos ADD COLUMN ultimo_pulso TEXT');

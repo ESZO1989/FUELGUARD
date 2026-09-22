@@ -98,11 +98,26 @@ New-NetFirewallRule -DisplayName FuelGuard -Direction Inbound -Protocol TCP -Loc
 - Copie la carpeta `backups/` fuera del servidor (rclone a un bucket, robocopy a un NAS, etc.).
 - **Restaurar**: detenga el servicio, sustituya `data/fuelguard.db` por la copia (borre `fuelguard.db-wal` y `fuelguard.db-shm` si existen) y arranque.
 
-## 6. Supervisión
+## 6. Reportes por correo
+
+1. En `.env` defina el servidor SMTP de su proveedor de correo:
+
+| Proveedor | SMTP_HOST | SMTP_PORT | Nota |
+|---|---|---|---|
+| Google Workspace / Gmail | smtp.gmail.com | 587 | Use una "contraseña de aplicación" (requiere verificación en dos pasos) |
+| Microsoft 365 / Outlook | smtp.office365.com | 587 | Habilite "SMTP autenticado" en el buzón |
+| Servidor propio | su host | 587 (STARTTLS) o 465 (`SMTP_SECURE=1`) | `SMTP_TLS_INSECURE=1` solo con certificado autofirmado |
+
+2. En Administración → Parámetros indique los destinatarios (separados por coma), la hora de envío y qué reportes automáticos quiere: diario (día anterior), semanal (lunes, semana anterior) y mensual (día 1, mes anterior).
+3. Pruebe desde la pestaña Reportes con "Enviar reporte del período". El estado del último envío y el último error se muestran ahí mismo y en la auditoría.
+
+Cada correo lleva un resumen en HTML y los adjuntos Excel (todas las hojas: resumen, equipos, operadores, cisternas y merma, despachos, alertas, diario) y PDF.
+
+## 7. Supervisión
 
 - `GET /api/salud` sin autenticación devuelve versión, tiempo activo, cisternas en línea y último respaldo. Úselo en UptimeRobot, Zabbix o el healthcheck de Docker.
 - Auditoría (Administración) registra ingresos, bloqueos por PIN, cambios de catálogo, parámetros y respaldos.
 
-## 7. Escalado
+## 8. Escalado
 
 SQLite atiende sin problema decenas de cisternas y cientos de miles de despachos. Si la operación crece a varias obras con decenas de cisternas, o se exige alta disponibilidad, el paso es PostgreSQL: las consultas de `server/index.js` son SQL estándar y la capa de acceso está concentrada en `server/db.js`.

@@ -1,6 +1,6 @@
 {
   "name": "fuelguard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Control automatizado de despacho y consumo de combustible desde camión cisterna con detección de robos y dashboard en tiempo real",
   "private": true,
   "main": "server/index.js",
@@ -9,7 +9,7 @@
     "simulador": "node simulator/simulator.js",
     "dev": "node scripts/dev.js",
     "reset": "node scripts/reset.js",
-    "test": "node --test tests/rules.test.js tests/api.test.js",
+    "test": "node --test tests/rules.test.js tests/api.test.js tests/reportes.test.js",
     "start:prod": "node --env-file=.env server/index.js",
     "backup": "node scripts/backup.js"
   },

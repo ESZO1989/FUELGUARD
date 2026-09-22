@@ -504,6 +504,81 @@ setInterval(() => {
   }
 }, 60e3).unref();
 
+// ------------------------------------------------------------------
+// Reportes (Excel, PDF, correo)
+// ------------------------------------------------------------------
+const reportes = require('./reportes');
+const smtp = require('./smtp');
+function rangoDesde(url) {
+  return reportes.rango(url.searchParams.get('periodo') || (url.searchParams.get('desde') ? 'personalizado' : 'semana'), url.searchParams.get('desde'), url.searchParams.get('hasta'));
+}
+function descargar(res, nombre, tipo, buffer, enLinea = false) {
+  res.writeHead(200, { ...CABECERAS_SEG, 'Content-Type': tipo, 'Content-Disposition': `${enLinea ? 'inline' : 'attachment'}; filename="${nombre}"`, 'Content-Length': buffer.length, 'Cache-Control': 'no-store' });
+  res.end(buffer);
+}
+ruta('GET', '/api/reportes/consumo', async ({ usuario, url, res }) => {
+  const u = requerir(usuario);
+  let rg; try { rg = rangoDesde(url); } catch (e) { throw new HttpError(400, e.message); }
+  const d = reportes.datos(u, rg);
+  const formato = url.searchParams.get('formato') || 'json';
+  if (formato === 'xlsx') { descargar(res, reportes.nombreArchivo(d, 'xlsx'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', reportes.aExcel(d)); return undefined; }
+  if (formato === 'pdf') { descargar(res, reportes.nombreArchivo(d, 'pdf'), 'application/pdf', reportes.aPdf(d), url.searchParams.get('inline') === '1'); return undefined; }
+  if (formato === 'html') { res.writeHead(200, { ...CABECERAS_SEG, 'Content-Type': 'text/html; charset=utf-8' }); res.end(reportes.aHtml(d)); return undefined; }
+  const { despachos, alertas, ...resto } = d;   // la vista previa no necesita el detalle completo
+  return { ...resto, n_despachos: despachos.length, n_alertas: alertas.length };
+});
+ruta('GET', '/api/reportes/estado', async ({ usuario }) => {
+  requerir(usuario, 'admin', 'supervisor');
+  const p = todosParametros();
+  return { smtp_configurado: !!smtp.configDesdeEntorno(), smtp_host: process.env.SMTP_HOST || null, remitente: (smtp.configDesdeEntorno() || {}).from || null,
+    destinatarios: p.reporte_destinatarios || '', hora: Number(p.reporte_hora || 6), diario: p.reporte_diario === '1', semanal: p.reporte_semanal === '1', mensual: p.reporte_mensual === '1',
+    ultimo_envio: p.ultimo_envio_reporte || null, ultimo_error: p.ultimo_error_reporte || null };
+});
+async function enviarReporte(u, rg, destinatarios, formatos, origen) {
+  const cfg = smtp.configDesdeEntorno();
+  if (!cfg) throw new HttpError(400, 'Correo no configurado: defina SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS y SMTP_FROM en .env');
+  const to = String(destinatarios || '').split(/[,;\s]+/).map(s => s.trim()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  if (!to.length) throw new HttpError(400, 'Indique al menos un destinatario válido');
+  const d = reportes.datos(u, rg);
+  const adjuntos = [];
+  if (!formatos || formatos.includes('xlsx')) adjuntos.push({ nombre: reportes.nombreArchivo(d, 'xlsx'), contenido: reportes.aExcel(d), tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  if (!formatos || formatos.includes('pdf')) adjuntos.push({ nombre: reportes.nombreArchivo(d, 'pdf'), contenido: reportes.aPdf(d), tipo: 'application/pdf' });
+  const asunto = `[FuelGuard] Consumo de combustible · ${d.periodo.etiqueta} · ${fmtL(d.resumen.litros)} · merma ${d.resumen.merma_pct}%`;
+  try {
+    const r = await smtp.enviarCorreo({ ...cfg, to, subject: asunto, text: reportes.aTexto(d), html: reportes.aHtml(d), adjuntos });
+    setParametro('ultimo_envio_reporte', `${ahoraISO()} · ${origen} · ${to.join(', ')}`); setParametro('ultimo_error_reporte', '');
+    q.insAuditoria.run(ahoraISO(), u.id || null, 'enviar_reporte', `${origen} ${d.periodo.etiqueta} → ${to.join(', ')}`);
+    return { ok: true, destinatarios: to, asunto, adjuntos: adjuntos.map(a => a.nombre), respuesta: r.respuesta };
+  } catch (e) {
+    setParametro('ultimo_error_reporte', `${ahoraISO()} · ${e.message}`);
+    q.insAuditoria.run(ahoraISO(), u.id || null, 'error_reporte', `${origen}: ${e.message}`);
+    throw new HttpError(502, `No se pudo enviar el correo: ${e.message}`);
+  }
+}
+const fmtL = n => `${Math.round(n).toLocaleString('es-PE')} L`;
+ruta('POST', '/api/reportes/enviar', async ({ usuario, cuerpo }) => {
+  const u = requerir(usuario, 'admin', 'supervisor');
+  let rg; try { rg = reportes.rango(cuerpo.periodo || 'semana', cuerpo.desde, cuerpo.hasta); } catch (e) { throw new HttpError(400, e.message); }
+  return enviarReporte(u, rg, cuerpo.destinatarios || todosParametros().reporte_destinatarios, Array.isArray(cuerpo.formatos) && cuerpo.formatos.length ? cuerpo.formatos : null, 'manual');
+});
+// Envío programado: diario (ayer), semanal (lunes, semana anterior) y mensual (día 1, mes anterior) a la hora configurada.
+const USUARIO_PROGRAMADO = { id: null, nombre: 'Envío programado', rol: 'admin' };
+setInterval(async () => {
+  const p = todosParametros();
+  const ahora = new Date();
+  if (ahora.getHours() !== Number(p.reporte_hora || 6) || !p.reporte_destinatarios || !smtp.configDesdeEntorno()) return;
+  const hoy = ahora.toISOString().slice(0, 10);
+  const tareas = [];
+  if (p.reporte_diario === '1' && p.ultimo_reporte_diario !== hoy) tareas.push(['diario', 'ayer', 'ultimo_reporte_diario']);
+  if (p.reporte_semanal === '1' && ahora.getDay() === 1 && p.ultimo_reporte_semanal !== hoy) tareas.push(['semanal', 'semana_anterior', 'ultimo_reporte_semanal']);
+  if (p.reporte_mensual === '1' && ahora.getDate() === 1 && p.ultimo_reporte_mensual !== hoy) tareas.push(['mensual', 'mes_anterior', 'ultimo_reporte_mensual']);
+  for (const [nombre, periodo, clave] of tareas) {
+    setParametro(clave, hoy);   // se marca antes para no reintentar en bucle si el SMTP falla
+    try { await enviarReporte(USUARIO_PROGRAMADO, reportes.rango(periodo), p.reporte_destinatarios, null, nombre); console.log(`[reporte ${nombre}] enviado a ${p.reporte_destinatarios}`); }
+    catch (e) { console.error(`[reporte ${nombre}] ${e.message}`); }
+  }
+}, 60e3).unref();
+
 ruta('GET', '/api/usuarios', async ({ usuario }) => {
   requerir(usuario, 'admin', 'supervisor');
   return db.prepare(`SELECT u.id, u.nombre, u.usuario, u.rol, u.activo, u.creado,
@@ -539,7 +614,7 @@ ruta('PUT', '/api/usuarios/:id', async ({ usuario, params, cuerpo }) => {
 ruta('GET', '/api/parametros', async ({ usuario }) => { requerir(usuario, 'admin', 'supervisor'); return todosParametros(); });
 ruta('PUT', '/api/parametros', async ({ usuario, cuerpo }) => {
   const u = requerir(usuario, 'admin');
-  const permitidas = ['empresa', 'moneda', 'precio_litro', 'tolerancia_descuadre_pct', 'tolerancia_descuadre_l', 'merma_umbral_l', 'horario_inicio', 'horario_fin', 'geocerca_lat', 'geocerca_lng', 'geocerca_radio_m', 'factor_sobrellenado', 'minutos_entre_despachos', 'factor_consumo_anomalo', 'precision_nivel_pct', 'backup_hora', 'modo_demo'];
+  const permitidas = ['empresa', 'moneda', 'precio_litro', 'tolerancia_descuadre_pct', 'tolerancia_descuadre_l', 'merma_umbral_l', 'horario_inicio', 'horario_fin', 'geocerca_lat', 'geocerca_lng', 'geocerca_radio_m', 'factor_sobrellenado', 'minutos_entre_despachos', 'factor_consumo_anomalo', 'precision_nivel_pct', 'backup_hora', 'modo_demo', 'reporte_destinatarios', 'reporte_hora', 'reporte_diario', 'reporte_semanal', 'reporte_mensual'];
   for (const [k, v] of Object.entries(cuerpo)) if (permitidas.includes(k)) setParametro(k, v);
   q.insAuditoria.run(ahoraISO(), u.id, 'editar_parametros', JSON.stringify(cuerpo));
   return todosParametros();

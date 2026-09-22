@@ -82,7 +82,7 @@ async function iniciar() {
 const TITULOS = {
   panel: ['Panel', 'Estado en tiempo real del despacho de combustible'], despachos: ['Despachos', 'Cada registro proviene del caudalímetro, no de un vale manual'],
   consumo: ['Consumo', 'Litros, horas y rendimiento por equipo y por usuario'], alertas: ['Alertas', 'Eventos detectados por el motor de reglas antirrobo'],
-  equipos: ['Equipos y cisternas', 'Catálogo, tags RFID y estado de los dispositivos'], hardware: ['Hardware y costos', 'Cómo funciona y cuánto cuesta implementarlo'], admin: ['Administración', 'Usuarios, parámetros y auditoría'],
+  equipos: ['Equipos y cisternas', 'Catálogo, tags RFID y estado de los dispositivos'], reportes: ['Reportes', 'Consumo, merma y alertas por período en Excel, PDF o por correo'], hardware: ['Hardware y costos', 'Cómo funciona y cuánto cuesta implementarlo'], admin: ['Administración', 'Usuarios, parámetros y auditoría'],
 };
 $('#nav').addEventListener('click', e => { const b = e.target.closest('button[data-vista]'); if (b) irA(b.dataset.vista); });
 document.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irA(b.dataset.ir); });
@@ -91,7 +91,7 @@ async function irA(v) {
   $$('.nav button').forEach(b => b.classList.toggle('active', b.dataset.vista === v));
   $$('.vista').forEach(s => s.classList.toggle('hidden', s.id !== 'vista-' + v));
   const [t, st] = TITULOS[v]; $('#titulo-vista').textContent = S.usuario.rol === 'operador' && v === 'consumo' ? 'Mi consumo' : t; $('#subtitulo-vista').textContent = S.usuario.rol === 'operador' && v === 'consumo' ? 'Solo los equipos asignados a ti' : st;
-  try { await ({ panel: cargarPanel, despachos: cargarDespachos, consumo: cargarConsumo, alertas: cargarAlertas, equipos: cargarEquipos, hardware: cargarHardware, admin: cargarAdmin })[v](); }
+  try { await ({ panel: cargarPanel, despachos: cargarDespachos, consumo: cargarConsumo, alertas: cargarAlertas, equipos: cargarEquipos, reportes: cargarReportes, hardware: cargarHardware, admin: cargarAdmin })[v](); }
   catch (e) { toast('Error', e.message, 'critica'); }
 }
 
@@ -302,7 +302,7 @@ async function modalEquipo(e) {
 }
 
 // ------------------------------------------------------------------ ADMIN
-const PARAM_LABELS = { empresa: 'Nombre del proyecto/empresa', modo_demo: 'Modo demo (1 = muestra usuarios de prueba en el login)', backup_hora: 'Hora del respaldo automático (0-23)', moneda: 'Moneda', precio_litro: 'Precio por litro', tolerancia_descuadre_pct: 'Tolerancia descuadre (%)', tolerancia_descuadre_l: 'Tolerancia descuadre (L)', merma_umbral_l: 'Umbral merma cisterna (L)', horario_inicio: 'Hora inicio despachos', horario_fin: 'Hora fin despachos', geocerca_lat: 'Geocerca latitud', geocerca_lng: 'Geocerca longitud', geocerca_radio_m: 'Radio geocerca (m)', factor_sobrellenado: 'Factor sobrellenado (1.10 = +10%)', minutos_entre_despachos: 'Minutos mínimos entre despachos', factor_consumo_anomalo: 'Factor consumo anómalo (1.35 = +35%)', precision_nivel_pct: 'Precisión sensor de nivel (% capacidad)' };
+const PARAM_LABELS = { empresa: 'Nombre del proyecto/empresa', modo_demo: 'Modo demo (1 = muestra usuarios de prueba en el login)', backup_hora: 'Hora del respaldo automático (0-23)', reporte_destinatarios: 'Correos para reportes automáticos (coma)', reporte_hora: 'Hora de envío de reportes (0-23)', reporte_diario: 'Reporte diario (1 = sí)', reporte_semanal: 'Reporte semanal los lunes (1 = sí)', reporte_mensual: 'Reporte mensual el día 1 (1 = sí)', moneda: 'Moneda', precio_litro: 'Precio por litro', tolerancia_descuadre_pct: 'Tolerancia descuadre (%)', tolerancia_descuadre_l: 'Tolerancia descuadre (L)', merma_umbral_l: 'Umbral merma cisterna (L)', horario_inicio: 'Hora inicio despachos', horario_fin: 'Hora fin despachos', geocerca_lat: 'Geocerca latitud', geocerca_lng: 'Geocerca longitud', geocerca_radio_m: 'Radio geocerca (m)', factor_sobrellenado: 'Factor sobrellenado (1.10 = +10%)', minutos_entre_despachos: 'Minutos mínimos entre despachos', factor_consumo_anomalo: 'Factor consumo anómalo (1.35 = +35%)', precision_nivel_pct: 'Precisión sensor de nivel (% capacidad)' };
 async function cargarAdmin() {
   const [us, params, aud, cis, resp] = await Promise.all([api('/usuarios'), api('/parametros'), api('/auditoria'), api('/cisternas'), api('/respaldos').catch(() => null)]);
   S.cisternasAdmin = cis;
@@ -367,6 +367,57 @@ function modalUsuario(u) {
     ${u ? `<div class="field"><label>Estado</label><select name="activo"><option value="1" ${u.activo ? 'selected' : ''}>Activo</option><option value="0" ${!u.activo ? 'selected' : ''}>Inactivo</option></select></div>` : ''}</div>`,
     async datos => { if (!datos.pin) delete datos.pin; if ('activo' in datos) datos.activo = Number(datos.activo); await api(u ? `/usuarios/${u.id}` : '/usuarios', { method: u ? 'PUT' : 'POST', body: datos }); toast('Usuario guardado', datos.nombre, 'ok'); cargarAdmin(); });
 }
+
+// ------------------------------------------------------------------ REPORTES
+S.repPeriodo = 'semana';
+$('#rep-periodo').addEventListener('click', e => { const b = e.target.closest('button[data-p]'); if (!b) return; S.repPeriodo = b.dataset.p; $$('#rep-periodo button').forEach(x => x.classList.toggle('active', x === b)); $('#rep-fechas').classList.toggle('hidden', S.repPeriodo !== 'personalizado'); if (S.repPeriodo !== 'personalizado') cargarReportes(); });
+$('#rep-desde').addEventListener('change', cargarReportes); $('#rep-hasta').addEventListener('change', cargarReportes);
+function repQuery() { const qs = new URLSearchParams({ periodo: S.repPeriodo }); if (S.repPeriodo === 'personalizado') { if (!$('#rep-desde').value) return null; qs.set('desde', $('#rep-desde').value); if ($('#rep-hasta').value) qs.set('hasta', $('#rep-hasta').value); } return qs; }
+async function cargarReportes() {
+  const qs = repQuery(); if (!qs) return;
+  const sup = ['admin', 'supervisor'].includes(S.usuario.rol);
+  $$('.solo-supervisor').forEach(el => el.classList.toggle('hidden', !sup));
+  const [d, est] = await Promise.all([api('/reportes/consumo?' + qs), sup ? api('/reportes/estado').catch(() => null) : null]);
+  S.rep = d;
+  $('#rep-etiqueta').innerHTML = `<b>${esc(d.periodo.etiqueta)}</b> · ${d.n_despachos} despachos · ${d.n_alertas} alertas · precio ${d.moneda} ${fmtN(d.precio, 2)}/L${S.usuario.rol === 'operador' ? ' · solo sus equipos' : S.usuario.rol === 'chofer' ? ' · solo su cisterna' : ''}`;
+  const r = d.resumen;
+  $('#rep-kpis').innerHTML = [
+    { l: 'Litros despachados', v: fmtN(r.litros), u: 'L', s: `${r.despachos} despachos · ${fmtN(r.promedio_diario)} L/día` },
+    { l: `Costo (${d.moneda})`, v: fmtN(r.costo), s: `${r.firmados} firmados en tablet · ${r.manuales} manuales` },
+    { l: 'Merma detectada', v: fmtN(r.merma_l), u: 'L', s: `${fmtN(r.merma_pct, 1)} % · ${d.moneda} ${fmtN(r.costo_merma)} · anterior ${fmtN(r.ant_merma_pct, 1)} %`, c: r.merma_pct > 2 ? 'alert' : r.merma_pct > 0.5 ? 'warn' : 'ok' },
+    { l: 'Alertas', v: r.alertas, s: `${r.criticas} críticas · ${r.rechazados} bloqueados · ${r.cortados} cortados`, c: r.criticas ? 'alert' : r.alertas ? 'warn' : 'ok' },
+  ].map(x => `<div class="kpi ${x.c || ''}"><div class="label">${x.l}</div><div class="value">${x.v}${x.u ? `<small>${x.u}</small>` : ''}</div><div class="sub">${x.s}</div></div>`).join('');
+  $('#rep-cisternas').innerHTML = d.cisternas.map(c => `<tr><td><b>${esc(c.cisterna)}</b> <span class="muted small">${c.despachos_n} desp.</span></td><td class="num mono">${fmtN(c.despachado_l)}</td><td class="num mono">${fmtN(c.merma_l)}</td><td class="num"><span class="badge ${c.merma_pct > 2 ? 'critica' : c.merma_pct > 0.5 ? 'media' : 'ok'}">${fmtN(c.merma_pct, 1)}%</span></td><td class="num mono muted">${fmtN(c.ant_merma_pct, 1)}%</td><td class="num mono">${c.variacion_merma_l >= 0 ? '+' : ''}${fmtN(c.variacion_merma_l)} L <span class="muted small">(${c.variacion_pct_puntos >= 0 ? '+' : ''}${fmtN(c.variacion_pct_puntos, 1)} pts)</span></td><td class="num mono">${c.rechazados}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin cisternas en el alcance</td></tr>';
+  $('#rep-alertas').innerHTML = d.alertasPorTipo.map(a => `<tr><td>${esc(a.nombre)}</td><td class="num mono">${a.n}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Sin alertas en el período</td></tr>';
+  $('#rep-equipos').innerHTML = d.equipos.map(e => `<tr><td><b>${esc(e.codigo)}</b><div class="small muted">${esc(e.nombre)}</div></td><td>${esc(e.operador || '—')}</td><td class="num mono">${e.despachos}</td><td class="num mono">${fmtN(e.litros)}</td><td class="num mono">${fmtN(e.horas, 1)}</td><td class="num mono">${e.lph_real != null ? fmtN(e.lph_real, 1) : '—'}</td><td class="num mono muted">${e.lph_nominal}</td><td class="num">${e.desvio_pct == null ? '—' : `<span class="badge ${e.desvio_pct > 35 ? 'critica' : e.desvio_pct > 15 ? 'media' : 'ok'}">${e.desvio_pct >= 0 ? '+' : ''}${fmtN(e.desvio_pct)}%</span>`}</td><td class="num">${e.alertas ? `<span class="badge alta">${e.alertas}</span>` : '0'}</td><td class="num mono">${fmtN(e.costo)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Sin despachos en el período</td></tr>';
+  if (est) {
+    $('#rep-smtp').innerHTML = est.smtp_configurado ? `<span class="badge ok">correo configurado</span> ${esc(est.smtp_host)} · remitente ${esc(est.remitente || '')}` : '<span class="badge media">correo no configurado</span> defina SMTP_HOST, SMTP_USER, SMTP_PASS y SMTP_FROM en .env';
+    if (!$('#rep-destinatarios').value) $('#rep-destinatarios').value = est.destinatarios;
+    $('#rep-programacion').innerHTML = `<b>Envío automático</b> a las ${est.hora}:00 → ${[est.diario && 'diario (día anterior)', est.semanal && 'semanal (lunes, semana anterior)', est.mensual && 'mensual (día 1, mes anterior)'].filter(Boolean).join(', ') || 'desactivado'} a: ${esc(est.destinatarios || '— sin destinatarios (Administración → Parámetros) —')}.${est.ultimo_envio ? ` Último envío: ${esc(est.ultimo_envio)}.` : ''}${est.ultimo_error ? ` <span style="color:var(--critical)">Último error: ${esc(est.ultimo_error)}</span>` : ''}`;
+  }
+}
+async function descargarReporte(formato) {
+  const qs = repQuery(); if (!qs) return toast('Fechas', 'Indique la fecha de inicio', 'media');
+  qs.set('formato', formato);
+  try {
+    const r = await fetch('/api/reportes/consumo?' + qs, { headers: { Authorization: 'Bearer ' + S.token } });
+    if (!r.ok) throw new Error((await r.json()).error || 'Error');
+    const nombre = (r.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || `reporte.${formato}`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = nombre; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Descarga lista', nombre, 'ok');
+  } catch (e) { toast('Error', e.message, 'critica'); }
+}
+$('#rep-excel').addEventListener('click', () => descargarReporte('xlsx'));
+$('#rep-pdf').addEventListener('click', () => descargarReporte('pdf'));
+$('#rep-html').addEventListener('click', async () => { const qs = repQuery(); if (!qs) return; qs.set('formato', 'html'); const r = await fetch('/api/reportes/consumo?' + qs, { headers: { Authorization: 'Bearer ' + S.token } }); const w = window.open('', '_blank'); w.document.write(await r.text()); w.document.close(); });
+$('#rep-enviar').addEventListener('click', async () => {
+  const formatos = [$('#rep-adj-xlsx').checked && 'xlsx', $('#rep-adj-pdf').checked && 'pdf'].filter(Boolean);
+  const body = { periodo: S.repPeriodo, desde: $('#rep-desde').value, hasta: $('#rep-hasta').value, destinatarios: $('#rep-destinatarios').value, formatos };
+  const btn = $('#rep-enviar'); btn.disabled = true; btn.textContent = 'Enviando…';
+  try { const r = await api('/reportes/enviar', { method: 'POST', body }); toast('Reporte enviado', `${r.destinatarios.join(', ')} · ${r.adjuntos.join(', ')}`, 'ok'); cargarReportes(); }
+  catch (e) { toast('No se envió', e.message, 'critica'); }
+  finally { btn.disabled = false; btn.textContent = '✉ Enviar reporte del período'; }
+});
 
 // ------------------------------------------------------------------ HARDWARE Y COSTOS
 const COMPONENTES = [

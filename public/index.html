@@ -41,6 +41,7 @@
       <button data-vista="consumo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span id="nav-consumo-label">Consumo</span></button>
       <button data-vista="alertas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas<span class="badge critica hidden" id="nav-alertas">0</span></button>
       <button data-vista="equipos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17h2l2-6h8l3 6h3M7 17a2 2 0 104 0 2 2 0 10-4 0zm9 0a2 2 0 104 0 2 2 0 10-4 0zM9 11V6h5l3 5"/></svg>Equipos</button>
+      <button data-vista="reportes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6"/></svg>Reportes</button>
       <button data-vista="hardware"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3M9 9h6v6H9z"/></svg>Hardware y costos</button>
       <button data-vista="admin" class="solo-admin hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Administración</button>
     </nav>
@@ -144,6 +145,41 @@
         <div class="tabla-wrap"><table>
           <thead><tr><th>Código</th><th>Placa</th><th>Chofer</th><th class="num">Capacidad</th><th class="num">Nivel</th><th class="num">K-factor</th><th class="num">Caudal min–max</th><th>Posición GPS</th><th>Última señal</th><th>Estado</th></tr></thead>
           <tbody id="tabla-cisternas"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- REPORTES ---------- -->
+    <section id="vista-reportes" class="vista hidden grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h2>Período del reporte</h2>
+          <div class="acciones">
+            <div class="segmentos" id="rep-periodo"><button data-p="hoy">Hoy</button><button data-p="ayer">Ayer</button><button data-p="semana" class="active">7 días</button><button data-p="semana_anterior">Semana anterior</button><button data-p="mes">Mes</button><button data-p="mes_anterior">Mes anterior</button><button data-p="personalizado">Fechas</button></div>
+            <span id="rep-fechas" class="hidden"><input type="date" id="rep-desde" class="btn small"> <input type="date" id="rep-hasta" class="btn small"></span>
+          </div></div>
+        <div class="acciones" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="rep-excel">⬇ Descargar Excel</button>
+          <button class="btn primary" id="rep-pdf">⬇ Descargar PDF</button>
+          <button class="btn" id="rep-html">Ver como página</button>
+        </div>
+        <div class="nota" id="rep-etiqueta"></div>
+      </div>
+      <div class="grid kpis" id="rep-kpis"></div>
+      <div class="grid cols-2">
+        <div class="card"><div class="card-head"><h2>Comparativa de merma por cisterna</h2><span class="small muted">vs. período anterior de igual duración</span></div>
+          <div class="tabla-wrap"><table><thead><tr><th>Cisterna</th><th class="num">Despachado</th><th class="num">Merma L</th><th class="num">%</th><th class="num">Anterior %</th><th class="num">Variación</th><th class="num">Bloqueados</th></tr></thead><tbody id="rep-cisternas"></tbody></table></div></div>
+        <div class="card"><div class="card-head"><h2>Alertas del período</h2></div>
+          <div class="tabla-wrap"><table><thead><tr><th>Tipo</th><th class="num">Cantidad</th></tr></thead><tbody id="rep-alertas"></tbody></table></div></div>
+      </div>
+      <div class="card"><div class="card-head"><h2>Consumo por equipo</h2></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Equipo</th><th>Operador</th><th class="num">Despachos</th><th class="num">Litros</th><th class="num">Horas</th><th class="num">L/h real</th><th class="num">Nominal</th><th class="num">Desvío</th><th class="num">Alertas</th><th class="num">Costo</th></tr></thead><tbody id="rep-equipos"></tbody></table></div></div>
+      <div class="card solo-supervisor">
+        <div class="card-head"><h2>Envío por correo</h2><span class="small" id="rep-smtp"></span></div>
+        <div class="form-grid">
+          <div class="field" style="grid-column:1/-1"><label>Destinatarios (separados por coma)</label><input id="rep-destinatarios" placeholder="gerencia@empresa.com, supervisor@empresa.com"></div>
+          <div class="field"><label>Adjuntos</label><div style="display:flex;gap:14px;padding-top:8px"><label style="font-size:13px"><input type="checkbox" id="rep-adj-xlsx" checked> Excel</label><label style="font-size:13px"><input type="checkbox" id="rep-adj-pdf" checked> PDF</label></div></div>
+          <div class="field"><label>&nbsp;</label><button class="btn primary" id="rep-enviar">✉ Enviar reporte del período</button></div>
+        </div>
+        <div class="nota" id="rep-programacion"></div>
       </div>
     </section>
 

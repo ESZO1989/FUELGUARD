@@ -33,6 +33,7 @@ Levanta el servidor en <http://localhost:3000> y el simulador de dos cisternas. 
 | **Consumo** | Litros, horas y L/h real vs nominal por equipo; consumo por operador; balance por cisterna (recargas − despachos vs nivel real = merma) |
 | **Alertas** | 13 tipos de eventos con severidad; resolución con nota y auditoría |
 | **Equipos** | Catálogo con tag RFID, operador, capacidad, horómetro; estado de cada cisterna/dispositivo |
+| **Reportes** | Consumo por equipo, operador y cisterna, comparativa de merma con el período anterior, alertas y detalle de despachos; descarga en Excel y PDF; envío por correo manual y automático (diario, semanal, mensual) |
 | **Hardware y costos** | Explicación del funcionamiento, arquitectura, tabla de componentes con precios editables y calculadora CAPEX/OPEX/ROI con gráfico |
 | **Administración** | Usuarios y roles, cisternas y claves de dispositivo, parámetros de las reglas, respaldos, auditoría |
 | **App del chofer** (`/chofer/`) | Aplicación instalable para la tablet del camión: despacho en vivo, bloqueos, confirmación con horómetro y firma del operador, ticket imprimible, recargas del proveedor, despacho manual de contingencia y cola sin conexión |
@@ -61,7 +62,9 @@ Los umbrales se editan en **Administración → Parámetros** (tolerancias, prec
 ```
 server/index.js     API REST + telemetría de dispositivos + SSE + estáticos
 server/rules.js     motor de reglas antirrobo (puro, probado)
-server/db.js        esquema SQLite, migraciones y datos semilla
+server/db.js        esquema SQLite, migraciones, datos semilla y respaldos
+server/reportes.js  reportes por período (datos, Excel, PDF, correo)
+server/xlsx.js      generador .xlsx sin dependencias · server/pdf.js generador PDF · server/smtp.js cliente SMTP
 simulator/          emulador del controlador de cisterna (mismo protocolo que el firmware)
 firmware/           firmware real del controlador (ESP32 + SIM7600, PlatformIO) — ver firmware/README.md
 public/             dashboard (HTML/CSS/JS, Chart.js por CDN)
@@ -96,5 +99,6 @@ Guía completa en [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) (Linux con systemd + 
 3. Ponga HTTPS con Caddy ([deploy/Caddyfile](deploy/Caddyfile)) o `TLS_CERT`/`TLS_KEY`.
 4. Arranque automático: `deploy/linux/instalar.sh` (systemd) o `deploy/windows/instalar-servicio.ps1`.
 5. Respaldos: automáticos a diario, `npm run backup`, o el botón en Administración. `GET /api/salud` para monitoreo.
+6. Reportes por correo: configure `SMTP_*` en `.env` y los destinatarios y horario en Administración → Parámetros.
 
 Incluido de serie: bloqueo por intentos de PIN, cabeceras de seguridad (CSP, HSTS), auditoría y hash encadenado de despachos.
