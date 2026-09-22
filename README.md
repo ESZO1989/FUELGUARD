@@ -4,6 +4,7 @@ Aplicación para controlar el despacho de combustible desde **camiones cisterna 
 
 - **Sin dependencias externas**: solo Node.js ≥ 22.13 (usa SQLite integrado y Server‑Sent Events).
 - **Hardware emulado**: `simulator/` reproduce el controlador del camión (RFID, caudalímetro, sensor de nivel, GPS) e inyecta escenarios de robo para probar las reglas.
+- **Firmware real**: [firmware/](firmware/README.md) para ESP32 con módem 4G SIM7600 (o WiFi), con lista blanca local y cola de eventos sin cobertura.
 - **Documento de hardware y costos**: [docs/HARDWARE_Y_COSTOS.md](docs/HARDWARE_Y_COSTOS.md) (también dentro del dashboard, con calculadora de retorno editable).
 
 ## Arranque rápido
@@ -60,7 +61,8 @@ Los umbrales se editan en **Administración → Parámetros** (tolerancias, prec
 server/index.js     API REST + telemetría de dispositivos + SSE + estáticos
 server/rules.js     motor de reglas antirrobo (puro, probado)
 server/db.js        esquema SQLite, migraciones y datos semilla
-simulator/          emulador del controlador de cisterna (protocolo de referencia para el firmware)
+simulator/          emulador del controlador de cisterna (mismo protocolo que el firmware)
+firmware/           firmware real del controlador (ESP32 + SIM7600, PlatformIO) — ver firmware/README.md
 public/             dashboard (HTML/CSS/JS, Chart.js por CDN)
 docs/               hardware, costos y funcionamiento
 tests/              pruebas del motor de reglas (node --test)
@@ -74,10 +76,12 @@ Cabecera `x-device-key: <clave de la cisterna>`.
 |---|---|---|
 | GET | `/api/dispositivo/whitelist` | — → tags autorizados, horómetros, parámetros |
 | POST | `/api/dispositivo/heartbeat` | `{lat,lng}` |
-| POST | `/api/dispositivo/despacho/inicio` | `{tag,lat,lng,nivel,horometro}` → `{autorizado,despacho_id,max_litros}` |
+| POST | `/api/dispositivo/despacho/inicio` | `{tag,lat,lng,nivel,horometro,ts?}` → `{autorizado,despacho_id,max_litros}` |
 | POST | `/api/dispositivo/despacho/pulso` | `{despacho_id,litros,pulsos,caudal}` → `{cortar}` |
-| POST | `/api/dispositivo/despacho/fin` | `{despacho_id,litros,pulsos,nivel,caudal_prom,motivo}` → `{hash,alertas}` |
-| POST | `/api/dispositivo/nivel` | `{nivel,lat,lng}` |
+| POST | `/api/dispositivo/despacho/fin` | `{despacho_id,litros,pulsos,nivel,caudal_prom,motivo,ts?}` → `{hash,alertas}` |
+| POST | `/api/dispositivo/nivel` | `{nivel,lat,lng,ts?}` |
+
+`ts` (ISO‑8601) es opcional: lo envía el controlador al reenviar eventos guardados sin cobertura y el servidor conserva esa hora si es verosímil (últimos 30 días).
 | POST | `/api/dispositivo/recarga` | `{litros,guia,nivel_despues}` |
 
 ## Puesta en producción

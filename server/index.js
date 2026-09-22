@@ -406,6 +406,15 @@ ruta('GET', '/api/stream', async ({ usuario, req, res }) => {
 // ------------------------------------------------------------------
 // Telemetría de dispositivos (controlador del camión cisterna)
 // ------------------------------------------------------------------
+// Marca de tiempo del dispositivo (eventos guardados sin señal y reenviados). Solo se acepta si es verosímil.
+function tsDispositivo(cuerpo, minimo) {
+  const t = cuerpo && cuerpo.ts ? new Date(cuerpo.ts) : null;
+  if (!t || Number.isNaN(t.getTime())) return ahoraISO();
+  const ahora = Date.now();
+  if (t.getTime() > ahora + 5 * 60e3 || t.getTime() < ahora - 30 * 86400e3) return ahoraISO();
+  if (minimo && t.toISOString() < minimo) return ahoraISO();
+  return t.toISOString();
+}
 function cisternaDesde(req) {
   const key = req.headers['x-device-key'];
   if (!key) throw new HttpError(401, 'Falta x-device-key');
@@ -435,10 +444,11 @@ ruta('POST', '/api/dispositivo/despacho/inicio', async ({ req, cuerpo }) => {
   const equipo = tag ? q.equipoPorTag.get(tag) : null;
   const ultimo = equipo ? q.ultimoDespachoEquipo.get(equipo.id) : null;
   const lat = cuerpo.lat ?? cisterna.lat, lng = cuerpo.lng ?? cisterna.lng;
-  const ev = reglas.evaluarInicio({ tag, equipo, cisterna, lat, lng, ahora: new Date(), ultimoDespachoEquipo: ultimo });
+  const tsInicio = tsDispositivo(cuerpo);
+  const ev = reglas.evaluarInicio({ tag, equipo, cisterna, lat, lng, ahora: new Date(tsInicio), ultimoDespachoEquipo: ultimo });
   const nivelAntes = cuerpo.nivel ?? cisterna.nivel_actual;
   const horometro = cuerpo.horometro != null ? Number(cuerpo.horometro) : null;
-  const r = q.insDespacho.run(cisterna.id, equipo ? equipo.id : null, tag, cisterna.chofer_id, equipo ? equipo.operador_id : null, ahoraISO(), 0, 0, lat, lng,
+  const r = q.insDespacho.run(cisterna.id, equipo ? equipo.id : null, tag, cisterna.chofer_id, equipo ? equipo.operador_id : null, tsInicio, 0, 0, lat, lng,
     horometro, equipo ? equipo.horometro : null, nivelAntes, ev.rechazar ? 'rechazado' : 'en_curso', ev.rechazar ? ev.alertas.map(a => a.tipo).join(',') : null);
   const id = Number(r.lastInsertRowid);
   registrarAlertas(ev.alertas, { despacho_id: id, cisterna_id: cisterna.id, equipo_id: equipo ? equipo.id : null, operador_id: equipo ? equipo.operador_id : null });
@@ -478,10 +488,12 @@ ruta('POST', '/api/dispositivo/despacho/fin', async ({ req, cuerpo }) => {
   const cisterna = cisternaDesde(req);
   const d = q.despachoPorId.get(Number(cuerpo.despacho_id));
   if (!d || d.cisterna_id !== cisterna.id) throw new HttpError(404, 'Despacho no encontrado para este dispositivo');
-  if (d.estado !== 'en_curso') throw new HttpError(409, `El despacho ya está ${d.estado}`);
+  // Se admite cerrar un despacho que el vigilante marcó "sin señal": el controlador reenvía el cierre real al recuperar cobertura.
+  const reenvio = d.estado === 'cortado' && d.motivo === 'sin_senal';
+  if (d.estado !== 'en_curso' && !reenvio) throw new HttpError(409, `El despacho ya está ${d.estado}`);
   const pulsos = Number(cuerpo.pulsos ?? d.pulsos);
   const litros = cuerpo.litros != null ? Number(cuerpo.litros) : pulsos / cisterna.k_factor;
-  const fin = ahoraISO();
+  const fin = tsDispositivo(cuerpo, d.inicio);
   const minutos = Math.max((new Date(fin) - new Date(d.inicio)) / 60000, 1 / 60);
   const marcasFin = pulsoMarcas.get(d.id) || {};
   const caudalProm = cuerpo.caudal_prom != null ? r1(Number(cuerpo.caudal_prom)) : marcasFin._nCaudal ? r1(marcasFin._sumCaudal / marcasFin._nCaudal) : r1(litros / minutos);
@@ -509,10 +521,16 @@ ruta('POST', '/api/dispositivo/nivel', async ({ req, cuerpo }) => {
   const cisterna = cisternaDesde(req);
   const nivel = Number(cuerpo.nivel);
   if (!Number.isFinite(nivel)) throw new HttpError(400, 'nivel inválido');
+  const ts = tsDispositivo(cuerpo);
+  if (cisterna.ultima_lectura && ts < cisterna.ultima_lectura) {
+    // Lectura histórica reenviada tras estar sin señal: se archiva sin alterar el nivel vigente ni evaluar reglas.
+    q.insLectura.run(cisterna.id, ts, nivel, cuerpo.lat ?? null, cuerpo.lng ?? null);
+    return { ok: true, archivada: true, alertas: [] };
+  }
   const enCurso = q.despachoEnCursoCisterna.get(cisterna.id);
   const ev = reglas.evaluarNivel({ cisterna, nivelAnterior: cisterna.ultima_lectura ? cisterna.nivel_actual : null, nivelNuevo: nivel, despachoEnCurso: !!enCurso });
   q.updNivelCisterna.run(nivel, ahoraISO(), cuerpo.lat ?? null, cuerpo.lng ?? null, cisterna.id);
-  q.insLectura.run(cisterna.id, ahoraISO(), nivel, cuerpo.lat ?? null, cuerpo.lng ?? null);
+  q.insLectura.run(cisterna.id, ts, nivel, cuerpo.lat ?? null, cuerpo.lng ?? null);
   registrarAlertas(ev.alertas, { cisterna_id: cisterna.id });
   emitir('nivel', { cisterna_id: cisterna.id, codigo: cisterna.codigo, nivel, capacidad: cisterna.capacidad, lat: cuerpo.lat, lng: cuerpo.lng }, { cisterna_id: cisterna.id });
   return { ok: true, alertas: ev.alertas.map(a => a.tipo) };

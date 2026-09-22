@@ -9,7 +9,7 @@
     "simulador": "node simulator/simulator.js",
     "dev": "node scripts/dev.js",
     "reset": "node scripts/reset.js",
-    "test": "node --test tests/rules.test.js"
+    "test": "node --test tests/rules.test.js tests/api.test.js"
   },
   "engines": {
     "node": ">=22.13"
