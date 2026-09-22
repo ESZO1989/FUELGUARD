@@ -1,0 +1,88 @@
+# FuelGuard · Control automatizado de combustible
+
+Aplicación para controlar el despacho de combustible desde **camiones cisterna a equipos de obra/mina**, detectar robos automáticamente y ver el consumo **en tiempo real por usuario**.
+
+- **Sin dependencias externas**: solo Node.js ≥ 22.13 (usa SQLite integrado y Server‑Sent Events).
+- **Hardware emulado**: `simulator/` reproduce el controlador del camión (RFID, caudalímetro, sensor de nivel, GPS) e inyecta escenarios de robo para probar las reglas.
+- **Documento de hardware y costos**: [docs/HARDWARE_Y_COSTOS.md](docs/HARDWARE_Y_COSTOS.md) (también dentro del dashboard, con calculadora de retorno editable).
+
+## Arranque rápido
+
+```bash
+npm run dev
+```
+
+Levanta el servidor en <http://localhost:3000> y el simulador de dos cisternas. Por separado: `npm start` (servidor) y `npm run simulador`. `npm run reset` borra la base para regenerar los datos demo. `npm test` ejecuta las pruebas del motor de reglas.
+
+### Usuarios de demostración
+
+| Usuario | PIN | Rol | Qué ve |
+|---|---|---|---|
+| `admin` | 1234 | Administrador | Todo + usuarios, parámetros, auditoría |
+| `supervisor` | 1111 | Supervisor | Todo, resuelve alertas |
+| `chofer1` / `chofer2` | 2222 / 3333 | Chofer | Solo su cisterna |
+| `jtorres`, `aflores`, `pmamani`, `rhuaman`, `dsalas`, `jvargas` | 4444…9999 | Operador | Solo el consumo de sus equipos |
+
+## Qué hace
+
+| Módulo | Función |
+|---|---|
+| **Panel** | KPIs del día y del mes, stock de cada cisterna, despachos en curso con litros y caudal en vivo, alertas recientes, gráficos por hora y por día |
+| **Despachos** | Historial completo con pulsos, caudal, horómetro, nivel de cisterna antes/después, estado, alertas y hash de integridad; exportación CSV |
+| **Consumo** | Litros, horas y L/h real vs nominal por equipo; consumo por operador; balance por cisterna (recargas − despachos vs nivel real = merma) |
+| **Alertas** | 13 tipos de eventos con severidad; resolución con nota y auditoría |
+| **Equipos** | Catálogo con tag RFID, operador, capacidad, horómetro; estado de cada cisterna/dispositivo |
+| **Hardware y costos** | Explicación del funcionamiento, arquitectura, tabla de componentes con precios editables y calculadora CAPEX/OPEX/ROI con gráfico |
+| **Administración** | Usuarios y roles, parámetros de las reglas, auditoría |
+
+## Reglas antirrobo (server/rules.js)
+
+| Regla | Cuándo | Acción |
+|---|---|---|
+| Tag no autorizado / equipo inactivo | al leer RFID | bloquea válvula |
+| Fuera de geocerca GPS | al leer RFID | bloquea válvula (crítica) |
+| Fuera de horario | al leer RFID | alerta |
+| Sobrellenado (> capacidad ×1.10) | durante el despacho | corta válvula (crítica) |
+| Caudal fuera de rango del caudalímetro | durante el despacho | alerta (manipulación/bypass) |
+| Descuadre nivel cisterna vs caudalímetro | al terminar | alerta alta (bypass o fuga) |
+| Consumo L/h muy superior al nominal | al terminar | alerta alta (sifoneo) |
+| Dos despachos seguidos que exceden el tanque | al terminar | alerta alta (recipiente externo) |
+| Caída de nivel sin despacho | lectura periódica | alerta crítica (robo directo) |
+| Recarga menor que la guía del proveedor | al recargar | alerta |
+| Pérdida de señal durante despacho | vigilante 90 s | cierra y alerta |
+| Integridad | siempre | cadena de hashes + auditoría |
+
+Los umbrales se editan en **Administración → Parámetros** (tolerancias, precisión del sensor de nivel, horario, geocerca, factores).
+
+## Estructura
+
+```
+server/index.js     API REST + telemetría de dispositivos + SSE + estáticos
+server/rules.js     motor de reglas antirrobo (puro, probado)
+server/db.js        esquema SQLite, migraciones y datos semilla
+simulator/          emulador del controlador de cisterna (protocolo de referencia para el firmware)
+public/             dashboard (HTML/CSS/JS, Chart.js por CDN)
+docs/               hardware, costos y funcionamiento
+tests/              pruebas del motor de reglas (node --test)
+```
+
+## Protocolo del dispositivo
+
+Cabecera `x-device-key: <clave de la cisterna>`.
+
+| Método | Ruta | Cuerpo |
+|---|---|---|
+| GET | `/api/dispositivo/whitelist` | — → tags autorizados, horómetros, parámetros |
+| POST | `/api/dispositivo/heartbeat` | `{lat,lng}` |
+| POST | `/api/dispositivo/despacho/inicio` | `{tag,lat,lng,nivel,horometro}` → `{autorizado,despacho_id,max_litros}` |
+| POST | `/api/dispositivo/despacho/pulso` | `{despacho_id,litros,pulsos,caudal}` → `{cortar}` |
+| POST | `/api/dispositivo/despacho/fin` | `{despacho_id,litros,pulsos,nivel,caudal_prom,motivo}` → `{hash,alertas}` |
+| POST | `/api/dispositivo/nivel` | `{nivel,lat,lng}` |
+| POST | `/api/dispositivo/recarga` | `{litros,guia,nivel_despues}` |
+
+## Puesta en producción
+
+1. Cambiar las `device_key` de las cisternas y los PIN de los usuarios demo (Administración).
+2. Configurar geocerca, horario y precio del litro en Parámetros.
+3. Publicar detrás de HTTPS (Caddy/Nginx) en un VPS o servidor local; `PORT` y `FUELGUARD_DB` son variables de entorno.
+4. Para más de ~5 cisternas o retención de años, migrar `server/db.js` a PostgreSQL (las consultas son SQL estándar).

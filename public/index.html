@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FuelGuard · Control de Combustible</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233987e5'/%3E%3Cpath d='M10 24V9a1 1 0 011-1h7a1 1 0 011 1v15M9 24h11M12 13h5M20 13l3 2v6a1.5 1.5 0 003 0v-8l-3-3' stroke='%23fff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<section id="login">
+  <div class="login-card">
+    <div class="brand"><div class="logo">FG</div><div><h1>FuelGuard</h1><small>Control automatizado de combustible</small></div></div>
+    <form id="form-login" autocomplete="off">
+      <div class="field"><label for="usuario">Usuario</label><input id="usuario" name="usuario" required placeholder="admin"></div>
+      <div class="field"><label for="pin">PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" required placeholder="••••"></div>
+      <div class="error" id="login-error"></div>
+      <button class="btn primary block" type="submit">Ingresar</button>
+    </form>
+    <div class="demo-users" id="demo-users">
+      <span class="small muted">Usuarios de demostración (clic para autocompletar):</span>
+      <button data-u="admin" data-p="1234"><span>Administrador</span><span class="mono">admin / 1234</span></button>
+      <button data-u="supervisor" data-p="1111"><span>Supervisora · Carla Ríos</span><span class="mono">supervisor / 1111</span></button>
+      <button data-u="chofer1" data-p="2222"><span>Chofer cisterna CIST-01 · Luis Paredes</span><span class="mono">chofer1 / 2222</span></button>
+      <button data-u="jtorres" data-p="4444"><span>Operador · Juan Torres (EX-01, EX-02)</span><span class="mono">jtorres / 4444</span></button>
+      <button data-u="aflores" data-p="5555"><span>Operadora · Ana Flores (CF-01, VQ-01)</span><span class="mono">aflores / 5555</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">FG</div><div><h1 style="font-size:16px">FuelGuard</h1><small id="empresa">Proyecto</small></div></div>
+    <nav class="nav" id="nav">
+      <button data-vista="panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Panel</button>
+      <button data-vista="despachos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Despachos</button>
+      <button data-vista="consumo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span id="nav-consumo-label">Consumo</span></button>
+      <button data-vista="alertas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas<span class="badge critica hidden" id="nav-alertas">0</span></button>
+      <button data-vista="equipos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17h2l2-6h8l3 6h3M7 17a2 2 0 104 0 2 2 0 10-4 0zm9 0a2 2 0 104 0 2 2 0 10-4 0zM9 11V6h5l3 5"/></svg>Equipos</button>
+      <button data-vista="hardware"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3M9 9h6v6H9z"/></svg>Hardware y costos</button>
+      <button data-vista="admin" class="solo-admin hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Administración</button>
+    </nav>
+    <div class="foot">
+      <button class="btn small" id="btn-tema" title="Cambiar tema">Tema claro</button>
+      <div style="margin-top:8px">v1.0 · SQLite · SSE</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><h1 id="titulo-vista">Panel</h1><div class="small muted" id="subtitulo-vista"></div></div>
+      <div class="who">
+        <span class="live" id="live"><span class="dot"></span><span id="live-text">Conectando…</span></span>
+        <div class="avatar" id="avatar">?</div>
+        <div><div id="who-nombre" style="font-weight:600"></div><div class="small muted" id="who-rol"></div></div>
+        <button class="btn small" id="btn-logout">Salir</button>
+      </div>
+    </div>
+
+    <!-- ---------- PANEL ---------- -->
+    <section id="vista-panel" class="vista grid" style="gap:16px">
+      <div class="grid kpis" id="kpis"></div>
+      <div class="grid cisternas" id="cisternas"></div>
+      <div class="grid cols-3">
+        <div class="card">
+          <div class="card-head"><h2>Despachos en curso <span class="badge info" id="n-en-vivo">0</span></h2><span class="small muted">Actualización por pulsos del caudalímetro</span></div>
+          <div class="en-vivo" id="en-vivo"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Alertas recientes</h2><button class="btn small" data-ir="alertas">Ver todas</button></div>
+          <div class="alertas-lista" id="alertas-recientes"></div>
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card"><div class="card-head"><h2>Litros despachados por hora · hoy</h2></div><div class="chart-box"><canvas id="ch-hora"></canvas></div></div>
+        <div class="card"><div class="card-head"><h2>Tendencia diaria · 14 días</h2></div><div class="chart-box"><canvas id="ch-dias"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Últimos despachos</h2><button class="btn small" data-ir="despachos">Ver todos</button></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Hora</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th class="num">Litros</th><th class="num">Caudal</th><th>Estado</th></tr></thead><tbody id="tabla-ultimos"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- DESPACHOS ---------- -->
+    <section id="vista-despachos" class="vista hidden">
+      <div class="card">
+        <div class="card-head">
+          <h2>Historial de despachos</h2>
+          <div class="acciones">
+            <select id="f-estado" class="btn small"><option value="">Todos los estados</option><option value="completado">Completados</option><option value="cortado">Cortados</option><option value="rechazado">Rechazados</option><option value="en_curso">En curso</option></select>
+            <select id="f-equipo" class="btn small"><option value="">Todos los equipos</option></select>
+            <button class="btn small" id="btn-csv">Exportar CSV</button>
+          </div>
+        </div>
+        <div class="tabla-wrap"><table>
+          <thead><tr><th>#</th><th>Inicio</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th>Chofer</th><th class="num">Litros</th><th class="num">Pulsos</th><th class="num">Caudal L/min</th><th class="num">Horóm.</th><th class="num">Nivel cist. antes→después</th><th>Estado</th><th>Alertas</th><th>Hash</th></tr></thead>
+          <tbody id="tabla-despachos"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- CONSUMO ---------- -->
+    <section id="vista-consumo" class="vista hidden grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h2 id="consumo-titulo">Consumo por equipo</h2>
+          <div class="segmentos" id="periodo"><button data-dias="7" class="active">7 días</button><button data-dias="14">14 días</button><button data-dias="30">30 días</button></div></div>
+        <div class="chart-box alto"><canvas id="ch-equipos"></canvas></div>
+        <div class="tabla-wrap" style="margin-top:12px"><table>
+          <thead><tr><th>Equipo</th><th>Tipo</th><th>Operador</th><th class="num">Despachos</th><th class="num">Litros</th><th class="num">Horas</th><th class="num">L/h real</th><th class="num">L/h nominal</th><th class="num">Desvío</th><th class="num">Costo</th></tr></thead>
+          <tbody id="tabla-equipos-consumo"></tbody></table></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card"><div class="card-head"><h2>Consumo por usuario (operador)</h2></div><div class="chart-box"><canvas id="ch-usuarios"></canvas></div>
+          <div class="tabla-wrap" style="margin-top:12px"><table><thead><tr><th>Operador</th><th class="num">Equipos</th><th class="num">Despachos</th><th class="num">Litros</th><th class="num">Alertas</th></tr></thead><tbody id="tabla-usuarios-consumo"></tbody></table></div></div>
+        <div class="card" id="card-balance"><div class="card-head"><h2>Balance por cisterna</h2><span class="small muted">stock inicial + recargas − despachos vs. nivel real</span></div>
+          <div class="tabla-wrap"><table><thead><tr><th>Cisterna</th><th class="num">Stock inicial</th><th class="num">Recargas</th><th class="num">Despachado</th><th class="num">Stock teórico</th><th class="num">Stock real</th><th class="num">Merma balance</th><th class="num">%</th><th class="num">Detectada en alertas</th></tr></thead><tbody id="tabla-balance"></tbody></table></div>
+          <div class="nota">La merma es combustible que salió de la cisterna sin pasar por un despacho autorizado. Cada evento queda registrado como alerta (robo directo o bypass del caudalímetro).</div></div>
+      </div>
+    </section>
+
+    <!-- ---------- ALERTAS ---------- -->
+    <section id="vista-alertas" class="vista hidden">
+      <div class="card">
+        <div class="card-head"><h2>Alertas de seguridad</h2>
+          <div class="segmentos" id="filtro-alertas"><button data-f="activas" class="active">Activas</button><button data-f="todas">Todas</button></div></div>
+        <div class="alertas-lista" id="alertas-lista"></div>
+      </div>
+    </section>
+
+    <!-- ---------- EQUIPOS ---------- -->
+    <section id="vista-equipos" class="vista hidden grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h2>Equipos y tags RFID</h2><div class="acciones solo-admin hidden"><button class="btn small primary" id="btn-nuevo-equipo">+ Nuevo equipo</button></div></div>
+        <div class="tabla-wrap"><table>
+          <thead><tr><th>Código</th><th>Equipo</th><th>Tipo</th><th>Tag RFID</th><th>Operador</th><th class="num">Tanque L</th><th class="num">Nominal L/h</th><th class="num">Horómetro</th><th>Último despacho</th><th class="num">Alertas</th><th>Estado</th><th class="solo-admin hidden"></th></tr></thead>
+          <tbody id="tabla-equipos"></tbody></table></div>
+      </div>
+      <div class="card" id="card-cisternas-detalle">
+        <div class="card-head"><h2>Cisternas (dispositivos)</h2></div>
+        <div class="tabla-wrap"><table>
+          <thead><tr><th>Código</th><th>Placa</th><th>Chofer</th><th class="num">Capacidad</th><th class="num">Nivel</th><th class="num">K-factor</th><th class="num">Caudal min–max</th><th>Posición GPS</th><th>Última señal</th><th>Estado</th></tr></thead>
+          <tbody id="tabla-cisternas"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- HARDWARE ---------- -->
+    <section id="vista-hardware" class="vista hidden grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h2>¿Cómo funciona el sistema automatizado?</h2></div>
+        <div class="grid cols-2">
+          <div class="pasos">
+            <div class="paso"><div><b>Identificación automática (chip RFID)</b><p>Cada equipo lleva un tag RFID pasivo (anillo en el cuello del tanque o tag industrial adherido). La pistola de la cisterna tiene un lector: al acercarla al tanque, identifica el equipo sin intervención humana. Sin tag válido, la electroválvula no abre.</p></div></div>
+            <div class="paso"><div><b>Autorización</b><p>El controlador del camión consulta al servidor (o su lista blanca local si no hay señal): equipo activo, dentro de la geocerca, en horario, sin despacho repetido. Si aprueba, abre la electroválvula.</p></div></div>
+            <div class="paso"><div><b>Medición por caudalímetro</b><p>Un caudalímetro de pulsos (engranaje oval o turbina, ~100 pulsos/L) mide cada litro. El controlador reporta el avance cada segundo: usted lo ve llenarse en vivo en este dashboard.</p></div></div>
+            <div class="paso"><div><b>Corte automático</b><p>La válvula cierra si se retira la pistola (el lector pierde el tag), si se supera la capacidad del tanque del equipo o si el servidor ordena el corte. Así no se puede llenar bidones "de paso".</p></div></div>
+            <div class="paso"><div><b>Conciliación con sensor de nivel</b><p>Un sensor de nivel en la cisterna verifica que lo que bajó el tanque coincide con lo que midió el caudalímetro. Si el nivel baja sin despacho o baja más de lo medido: alerta de robo o bypass.</p></div></div>
+            <div class="paso"><div><b>Consumo por horómetro</b><p>Con el horómetro (o telemetría CAN/GPS del equipo) se calcula L/h real. Un equipo que "consume" 40 L/h cuando su nominal es 25 L/h delata sifoneo del tanque del equipo.</p></div></div>
+            <div class="paso"><div><b>Registro inalterable</b><p>Cada despacho se encadena con un hash (como una cadena de bloques ligera). Editar o borrar un registro rompe la cadena y queda en evidencia. Toda acción administrativa queda en auditoría.</p></div></div>
+          </div>
+          <div>
+            <h3 style="margin-bottom:8px">Arquitectura</h3>
+<div class="arq">┌─ CAMIÓN CISTERNA ───────────────────────────────┐
+│  Sensor de nivel ──┐                            │
+│  GPS/4G ───────────┤   CONTROLADOR (IoT)        │
+│  Caudalímetro ─────┤   · valida tag RFID        │
+│  (pulsos)          │   · abre/cierra válvula    │
+│  Electroválvula ◄──┤   · cuenta pulsos          │
+│  Lector RFID ──────┘   · buffer offline         │
+│  (en la pistola)                │ 4G / LTE-M     │
+└─────────────────────────────────┼───────────────┘
+                                  ▼
+┌─ EQUIPO ───────┐      ┌─ SERVIDOR FuelGuard ──────────┐
+│ Tag RFID       │      │ API telemetría · reglas       │
+│ (anillo tanque)│      │ antirrobo · conciliación      │
+│ [opc.] sensor  │◄─4G─►│ SQLite/Postgres · SSE         │
+│ nivel + CAN    │      └────────────┬──────────────────┘
+└────────────────┘                   ▼
+                        ┌─ DASHBOARD (web/móvil) ───────┐
+                        │ Admin · Supervisor · Chofer   │
+                        │ · Operador (su consumo)       │
+                        └───────────────────────────────┘</div>
+            <h3 style="margin:16px 0 8px">Qué detecta cada componente</h3>
+            <div class="tabla-wrap"><table>
+              <thead><tr><th>Riesgo</th><th>Cómo se detecta / evita</th><th>Componente</th></tr></thead>
+              <tbody>
+                <tr><td>Despacho a vehículo ajeno o bidones</td><td>Sin tag válido la válvula no abre; corte al perder el tag</td><td>RFID + electroválvula</td></tr>
+                <tr><td>"Inflar" litros en el vale de papel</td><td>Litros medidos por pulsos, sin intervención humana</td><td>Caudalímetro</td></tr>
+                <tr><td>Extracción directa de la cisterna</td><td>Nivel cae sin despacho en curso → alerta crítica</td><td>Sensor de nivel</td></tr>
+                <tr><td>Bypass / manguera paralela</td><td>Nivel baja más que lo medido → descuadre</td><td>Nivel + caudalímetro</td></tr>
+                <tr><td>Despacho fuera de la obra</td><td>Geocerca GPS bloquea la válvula</td><td>GPS</td></tr>
+                <tr><td>Sifoneo del tanque del equipo</td><td>L/h real muy superior al nominal; nivel del equipo cae con motor apagado</td><td>Horómetro / sensor nivel equipo</td></tr>
+                <tr><td>Recarga del proveedor incompleta</td><td>Nivel sube menos que la guía de remisión</td><td>Sensor de nivel</td></tr>
+                <tr><td>Alteración de registros</td><td>Cadena de hashes + auditoría</td><td>Software</td></tr>
+              </tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Análisis financiero · costos de hardware y retorno</h2><span class="small muted">Precios referenciales USD 2026 (FOB + importación aprox.). Edite cualquier valor.</span></div>
+        <h3 style="margin-bottom:8px">1. Nivel de implementación</h3>
+        <div class="opciones" id="opciones-kit">
+          <div class="opcion" data-kit="basico"><h4>Básico</h4><span class="small muted">Identifica y mide</span><ul><li>Caudalímetro de pulsos por cisterna</li><li>Lector RFID en pistola + electroválvula</li><li>Controlador 4G + GPS</li><li>Tag RFID por equipo</li></ul></div>
+          <div class="opcion active" data-kit="estandar"><h4>Estándar <span class="badge ok">recomendado</span></h4><span class="small muted">Identifica, mide y concilia</span><ul><li>Todo lo del Básico</li><li>Sensor de nivel en la cisterna</li><li>Tablet del chofer + impresora de ticket</li><li>Detecta robo directo y bypass</li></ul></div>
+          <div class="opcion" data-kit="completo"><h4>Completo</h4><span class="small muted">Control de extremo a extremo</span><ul><li>Todo lo del Estándar</li><li>Sensor de nivel + lector CAN/horómetro en cada equipo</li><li>Detecta sifoneo del equipo en tiempo real</li><li>GPS por equipo</li></ul></div>
+        </div>
+        <h3 style="margin:18px 0 8px">2. Parámetros de su operación</h3>
+        <div class="form-grid" id="calc-params">
+          <div class="field"><label>Cisternas</label><input type="number" id="c-cisternas" value="2" min="1"></div>
+          <div class="field"><label>Equipos a controlar</label><input type="number" id="c-equipos" value="12" min="1"></div>
+          <div class="field"><label>Consumo mensual (L)</label><input type="number" id="c-litros" value="60000" min="0" step="1000"></div>
+          <div class="field"><label>Precio por litro (USD)</label><input type="number" id="c-precio" value="1.20" min="0" step="0.01"></div>
+          <div class="field"><label>Pérdida actual estimada (%)</label><input type="number" id="c-perdida" value="8" min="0" max="50" step="0.5"></div>
+          <div class="field"><label>Recuperación esperada (%)</label><input type="number" id="c-recupera" value="80" min="0" max="100" step="5"></div>
+        </div>
+        <h3 style="margin:18px 0 8px">3. Detalle de componentes</h3>
+        <div class="tabla-wrap"><table id="tabla-costos"><thead><tr><th>Componente</th><th>Para qué sirve</th><th>Unidad</th><th class="num">Cant.</th><th class="num">Costo unit. USD</th><th class="num">Subtotal</th></tr></thead><tbody></tbody></table></div>
+        <h3 style="margin:18px 0 8px">4. Resultado</h3>
+        <div class="resultado-grid" id="calc-resultado"></div>
+        <div class="nota" id="calc-nota"></div>
+        <div class="chart-box" style="margin-top:14px;height:220px"><canvas id="ch-roi"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ---------- ADMIN ---------- -->
+    <section id="vista-admin" class="vista hidden grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h2>Usuarios y roles</h2><button class="btn small primary" id="btn-nuevo-usuario">+ Nuevo usuario</button></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Asignación</th><th>Estado</th><th></th></tr></thead><tbody id="tabla-usuarios"></tbody></table></div>
+        <div class="nota"><b>Roles:</b> <b>admin</b> todo · <b>supervisor</b> ve todo y resuelve alertas · <b>chofer</b> ve solo su cisterna · <b>operador</b> ve solo el consumo de sus equipos.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Parámetros de las reglas antirrobo</h2><button class="btn small primary" id="btn-guardar-params">Guardar</button></div>
+        <div class="form-grid" id="form-params"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Auditoría</h2></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead><tbody id="tabla-auditoria"></tbody></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+<div id="modal-root"></div>
+<script src="app.js"></script>
+</body>
+</html>
