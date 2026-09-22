@@ -1,0 +1,5 @@
+# Scripts que se ejecutan en Linux deben conservar LF aunque el repo se clone en Windows
+*.sh text eol=lf
+*.service text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
