@@ -4,6 +4,8 @@ Controlador embarcado que convierte el camión cisterna en un punto de despacho 
 
 Habla exactamente el mismo protocolo que `simulator/simulator.js`, así que todo lo que ve en el dashboard con el simulador lo verá con el hardware real.
 
+Guía de instalación completa en el camión (mecánica, eléctrica, calibración y aceptación): [docs/INSTALACION_PASO_A_PASO.md](../docs/INSTALACION_PASO_A_PASO.md).
+
 ## 1. Lista de materiales (por cisterna)
 
 | # | Componente | Ejemplo comercial | Notas |
