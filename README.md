@@ -8,6 +8,7 @@ Aplicación para controlar el despacho de combustible desde **camiones cisterna 
 - **Documento de hardware y costos**: [docs/HARDWARE_Y_COSTOS.md](docs/HARDWARE_Y_COSTOS.md) (también dentro del dashboard, con calculadora de retorno editable).
 - **Lista de compra del piloto** con proveedores y precios verificados: [docs/LISTA_DE_COMPRA_PILOTO.md](docs/LISTA_DE_COMPRA_PILOTO.md).
 - **Instalación paso a paso** en la cisterna, con tiempos, responsables, problemas frecuentes y checklist de aceptación: [docs/INSTALACION_PASO_A_PASO.md](docs/INSTALACION_PASO_A_PASO.md).
+- **Planes comerciales** por nivel de funcionalidad y tipo de solución, con tarifas, ejemplos de cotización y márgenes: [docs/PLANES_COMERCIALES.md](docs/PLANES_COMERCIALES.md).
 
 ## Arranque rápido
 
