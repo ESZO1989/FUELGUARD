@@ -13,8 +13,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const fmtN = (n, d = 0) => Number(n ?? 0).toLocaleString('es-PE', { maximumFractionDigits: d, minimumFractionDigits: d });
 const fmtL = (n, d = 0) => `${fmtN(n, d)} L`;
 const fmtMoneda = n => `${S.params?.moneda || 'USD'} ${fmtN(n, 0)}`;
-const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : '—';
-const fmtFecha = iso => iso ? new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+const fmtFecha = iso => iso ? new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const relativo = iso => {
   if (!iso) return 'nunca';
   const s = (Date.now() - new Date(iso)) / 1000;
@@ -199,7 +199,7 @@ async function cargarDespachos() {
 }
 function filaDespacho(d) {
   const [cl, tx] = ESTADO[d.estado] || ['neutro', d.estado];
-  return `<tr data-did="${d.id}"><td class="mono muted">${d.id}</td><td class="mono">${fmtFecha(d.inicio)}</td><td>${esc(d.cisterna_codigo)}</td><td><b>${esc(d.equipo_codigo || '—')}</b>${!d.equipo_codigo ? `<div class="small muted mono">${esc(d.tag_rfid)}</div>` : ''}</td><td>${esc(d.operador || '—')}</td><td>${esc(d.chofer || '—')}</td>
+  return `<tr data-did="${d.id}"><td class="mono muted">${d.id}</td><td class="mono fecha">${fmtFecha(d.inicio)}</td><td>${esc(d.cisterna_codigo)}</td><td><b>${esc(d.equipo_codigo || '—')}</b>${!d.equipo_codigo ? `<div class="small muted mono">${esc(d.tag_rfid)}</div>` : ''}</td><td>${esc(d.operador || '—')}</td><td>${esc(d.chofer || '—')}</td>
     <td class="num mono">${fmtN(d.litros, 1)}</td><td class="num mono muted">${fmtN(d.pulsos)}</td><td class="num mono">${d.caudal_prom ? fmtN(d.caudal_prom, 1) : '—'}</td><td class="num mono">${d.horometro != null ? fmtN(d.horometro, 1) : '—'}</td>
     <td class="num mono">${d.nivel_antes != null ? fmtN(d.nivel_antes) : '—'} → ${d.nivel_despues != null ? fmtN(d.nivel_despues) : '—'}</td><td><span class="badge ${cl}">${tx}</span>${d.motivo && d.estado !== 'completado' ? `<div class="small muted">${esc(d.motivo)}</div>` : ''}</td>
     <td>${d.n_alertas ? `<span class="badge alta">${d.n_alertas}</span> ` : ''}${d.confirmado === 2 ? '<span class="badge ok" title="Firmado por el operador en la tablet">✍ firmado</span>' : d.confirmado === 1 ? '<span class="badge neutro">confirmado</span>' : ''}${d.motivo === 'manual' ? ' <span class="badge media">manual</span>' : ''}</td><td class="mono small muted" title="${esc(d.hash || '')}">${d.hash ? d.hash.slice(0, 8) + '…' : ''}</td></tr>`;

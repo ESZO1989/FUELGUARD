@@ -4,8 +4,21 @@ const S = { token: localStorage.getItem('fgc_token'), usuario: null, cisterna: n
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtN = (n, d = 0) => Number(n ?? 0).toLocaleString('es-PE', { maximumFractionDigits: d, minimumFractionDigits: d });
-const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : '—';
-const fmtFecha = iso => iso ? new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+const fmtFecha = iso => iso ? new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+// Iconos de línea (24×24) para no depender de los emoji del sistema de la tablet.
+const ICONOS = {
+  rfid: '<path d="M12 21v-9M4.9 7.9a10 10 0 0114.2 0M8.4 11.4a5 5 0 017.2 0"/>',
+  firma: '<path d="M3 21h18M14 4l4 4L8 18H4v-4L14 4z"/>',
+  alerta: '<path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/>',
+  imprimir: '<path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v7H6z"/>',
+  ok: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  corte: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  fin: '<path d="M5 21V3M5 4h13l-2 4 2 4H5"/>',
+  bloqueo: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+  rombo: '<path d="M12 3l9 9-9 9-9-9z"/>',
+};
+const icono = n => `<svg class="ic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[n]}</svg>`;
 const TIPO = { tag_no_autorizado: 'Tag no autorizado', equipo_inactivo: 'Equipo inactivo', fuera_de_horario: 'Fuera de horario', fuera_de_geocerca: 'Fuera de geocerca', despacho_repetido: 'Despacho repetido', sobrellenado: 'Sobrellenado', caudal_anomalo: 'Caudal anómalo', descuadre_caudalimetro: 'Descuadre caudalímetro', consumo_anomalo: 'Consumo anómalo', merma_cisterna: 'Merma en cisterna', recarga_no_registrada: 'Recarga no registrada', recarga_descuadrada: 'Recarga descuadrada', sin_senal: 'Sin señal', despacho_manual: 'Despacho manual' };
 
 // ---------- red ----------
@@ -97,11 +110,11 @@ function pintarEstado(clase, icono, titulo, sub, extra = '') {
   const el = $('#estado'); el.className = 'tarjeta estado ' + clase;
   el.innerHTML = `<div class="estado-icono">${icono}</div><div class="estado-titulo">${titulo}</div><div class="estado-sub muted">${sub}</div>${extra}`;
 }
-function pintarEsperando() { pintarEstado('', '📡', 'Esperando lectura del tag RFID', 'Acerque la pistola al cuello del tanque del equipo'); liberarPantalla(); }
+function pintarEsperando() { pintarEstado('', icono('rfid'), 'Esperando lectura del tag RFID', 'Acerque la pistola al cuello del tanque del equipo'); liberarPantalla(); }
 function pintarEstadoVivo() {
   const d = S.enVivo; if (!d) return pintarEsperando();
   const cap = d.capacidad_tanque || 400, p = Math.min(100, (d.litros / cap) * 100), exceso = d.litros > cap;
-  pintarEstado('autorizado', '✅', `Despachando a ${esc(d.equipo_codigo)}`, esc(d.equipo_nombre || ''),
+  pintarEstado('autorizado', icono('ok'), `Despachando a ${esc(d.equipo_codigo)}`, esc(d.equipo_nombre || ''),
     `<div class="litros"><span class="val">${fmtN(d.litros, 1)}</span><small> L</small></div>
      <div class="barra-litros"><i class="${exceso ? 'exceso' : ''}" style="width:${p.toFixed(1)}%"></i></div>
      <div class="detalle"><span>Máx. <b>${fmtN(cap)} L</b></span><span>Caudal <b class="caudal">${d.caudal ? fmtN(d.caudal, 1) + ' L/min' : '—'}</b></span><span>Operador <b>${esc(d.operador || '—')}</b></span><span>Inicio <b>${fmtHora(d.inicio)}</b></span></div>`);
@@ -119,14 +132,14 @@ let timerEstado = null;
 function pintarFin(d) {
   clearTimeout(timerEstado);
   const cortado = d.estado === 'cortado';
-  pintarEstado('fin', cortado ? '⛔' : '🏁', `${cortado ? 'Despacho cortado' : 'Despacho terminado'}: ${fmtN(d.litros, 1)} L`, `${esc(d.equipo_codigo)} · ${esc(d.operador || '—')}${cortado ? ' · motivo: ' + esc(d.motivo) : ''}`,
-    `<div class="botones"><button class="btn grande primario" data-confirmar="${d.id}">✍️ Confirmar con firma</button><button class="btn" data-ticket="${d.id}">🖨 Ticket</button></div>`);
+  pintarEstado('fin', icono(cortado ? 'corte' : 'fin'), `${cortado ? 'Despacho cortado' : 'Despacho terminado'}: ${fmtN(d.litros, 1)} L`, `${esc(d.equipo_codigo)} · ${esc(d.operador || '—')}${cortado ? ' · motivo: ' + esc(d.motivo) : ''}`,
+    `<div class="botones"><button class="btn grande primario" data-confirmar="${d.id}">${icono('firma')} Confirmar con firma</button><button class="btn" data-ticket="${d.id}">${icono('imprimir')} Ticket</button></div>`);
   sonar(cortado ? 'mal' : 'ok'); vibrar(cortado ? [200, 100, 200] : [120]);
   timerEstado = setTimeout(pintarEsperando, 120000);
 }
 function pintarBloqueo(d) {
   clearTimeout(timerEstado);
-  pintarEstado('bloqueado', '🚫', 'DESPACHO BLOQUEADO', esc(d.motivo || 'No autorizado'), `<div class="detalle"><span>Tag <b>${esc(d.tag_rfid || '—')}</b></span><span>${esc(d.equipo_codigo || 'equipo desconocido')}</span></div>`);
+  pintarEstado('bloqueado', icono('bloqueo'), 'DESPACHO BLOQUEADO', esc(d.motivo || 'No autorizado'), `<div class="detalle"><span>Tag <b>${esc(d.tag_rfid || '—')}</b></span><span>${esc(d.equipo_codigo || 'equipo desconocido')}</span></div>`);
   sonar('mal'); vibrar([300, 100, 300, 100, 300]);
   timerEstado = setTimeout(pintarEsperando, 30000);
 }
@@ -144,7 +157,7 @@ async function cargarHoy() {
   $('#lista-hoy').innerHTML = S.hoy.map(d => {
     const badge = d.estado === 'rechazado' ? '<span class="badge mal">Bloqueado</span>' : d.estado === 'en_curso' ? '<span class="badge info">En curso</span>' : d.confirmado === 2 ? '<span class="badge ok">Firmado</span>' : d.confirmado === 1 ? '<span class="badge ok">Confirmado</span>' : '<span class="badge pend">Sin firma</span>';
     const pendiente = S.cola.some(c => c.body && c.body._despacho === d.id) ? ' <span class="badge pend">por enviar</span>' : '';
-    return `<div class="item" ${d.estado === 'completado' || d.estado === 'cortado' ? `data-confirmar="${d.id}"` : ''}><div class="t">${esc(d.equipo_codigo || 'Tag ' + (d.tag_rfid || '?'))} <span class="muted small">#${d.id}</span></div><div class="l">${d.estado === 'rechazado' ? '—' : fmtN(d.litros, 1) + ' L'}</div><div class="s">${fmtHora(d.inicio)} · ${esc(d.operador || '—')}${d.motivo === 'manual' ? ' · MANUAL' : ''}${d.n_alertas ? ` · ⚠ ${d.n_alertas}` : ''}</div>${badge}${pendiente}</div>`;
+    return `<div class="item" ${d.estado === 'completado' || d.estado === 'cortado' ? `data-confirmar="${d.id}"` : ''}><div class="t">${esc(d.equipo_codigo || 'Tag ' + (d.tag_rfid || '?'))} <span class="muted small">#${d.id}</span></div><div class="l">${d.estado === 'rechazado' ? '—' : fmtN(d.litros, 1) + ' L'}</div><div class="s">${fmtHora(d.inicio)} · ${esc(d.operador || '—')}${d.motivo === 'manual' ? ' · MANUAL' : ''}${d.n_alertas ? ` · ${d.n_alertas} alerta${d.n_alertas > 1 ? 's' : ''}` : ''}</div>${badge}${pendiente}</div>`;
   }).join('') || '<div class="tarjeta muted">Aún no hay despachos hoy</div>';
 }
 
@@ -258,7 +271,7 @@ async function cargarAlertasContador() {
 }
 async function cargarAlertas() {
   await cargarAlertasContador();
-  $('#lista-alertas').innerHTML = S.alertas.map(a => `<div class="item alerta"><div class="ic">${a.severidad === 'critica' ? '⛔' : a.severidad === 'alta' ? '⚠️' : '🔶'}</div><div class="t">${TIPO[a.tipo] || a.tipo}</div><div class="s">${esc(a.mensaje)}<br><span class="muted">${fmtFecha(a.ts)}</span></div></div>`).join('') || '<div class="tarjeta muted">Sin alertas activas en su cisterna</div>';
+  $('#lista-alertas').innerHTML = S.alertas.map(a => `<div class="item alerta"><div class="ic ${a.severidad}">${icono(a.severidad === 'critica' ? 'corte' : a.severidad === 'alta' ? 'alerta' : 'rombo')}</div><div class="t">${TIPO[a.tipo] || a.tipo}</div><div class="s">${esc(a.mensaje)}<br><span class="muted">${fmtFecha(a.ts)}</span></div></div>`).join('') || '<div class="tarjeta muted">Sin alertas activas en su cisterna</div>';
 }
 
 // ---------- menú ----------

@@ -294,6 +294,21 @@ test('la resolución de una alerta solo llega por SSE a quien puede ver la alert
   assert.ok(!ids.includes(ajena.id), 'no recibe la ajena');
 });
 
+test('la app del chofer recupera el despacho en curso de su cisterna', async () => {
+  const login = async (usuario, pin) => (await (await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, pin }) })).json()).token;
+  const wl = (await dev('GET', '/api/dispositivo/whitelist')).data.equipos.find(e => e.codigo === 'CF-01');
+  const ini = await dev('POST', '/api/dispositivo/despacho/inicio', { tag: wl.tag, lat: -16.409, lng: -71.5375, nivel: 6900 });
+  assert.equal(ini.data.autorizado, true);
+  const id = ini.data.despacho_id;
+  const enCurso = async tok => (await (await fetch(base + '/api/despachos/en-curso', { headers: { Authorization: 'Bearer ' + tok } })).json());
+  const chofer = await login('chofer1', '2222'), jtorres = await login('jtorres', '4444');
+  const lista = await enCurso(chofer);
+  assert.ok(lista.some(d => d.id === id && d.equipo_codigo === 'CF-01'), 'el chofer de CIST-01 lo ve con el detalle del equipo');
+  assert.ok(!(await enCurso(jtorres)).some(d => d.id === id), 'un operador de otros equipos no lo ve');
+  await dev('POST', '/api/dispositivo/despacho/fin', { despacho_id: id, litros: 40, pulsos: 4000, nivel: 6860, motivo: 'normal' });
+  assert.ok(!(await enCurso(chofer)).some(d => d.id === id), 'al terminar desaparece de la lista');
+});
+
 test('una URL mal formada responde 400 y el servidor sigue vivo', async () => {
   const r = await fetch(base + '/%E0%A4%A');
   assert.equal(r.status, 400);

@@ -265,6 +265,11 @@ ruta('GET', '/api/despachos', async ({ usuario, url }) => {
     LEFT JOIN usuarios uo ON uo.id = d.operador_id LEFT JOIN usuarios uc ON uc.id = d.chofer_id
     ${where} ORDER BY d.inicio DESC LIMIT ?`).all(...params, ...al.params, limite);
 });
+// Debe registrarse antes de '/api/despachos/:id' para que "en-curso" no se interprete como un id.
+ruta('GET', '/api/despachos/en-curso', async ({ usuario }) => {
+  const u = requerir(usuario); const al = alcanceDespachos(u);
+  return db.prepare(`SELECT d.id FROM despachos d WHERE d.estado = 'en_curso'${al.sql} ORDER BY d.id DESC`).all(...al.params).map(r => q.despachoDetalle.get(r.id));
+});
 ruta('GET', '/api/despachos/:id', async ({ usuario, params }) => {
   const u = requerir(usuario);
   const d = q.despachoDetalle.get(Number(params.id));
