@@ -228,6 +228,20 @@ test('cinco PIN incorrectos bloquean el usuario 15 minutos', async () => {
   assert.ok(aud.some(a => a.accion === 'login_bloqueado'));
 });
 
+test('el detalle de un despacho respeta el alcance del operador y del chofer', async () => {
+  const login = async (usuario, pin) => (await (await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, pin }) })).json());
+  const op = await login('jtorres', '4444'), ch = await login('chofer1', '2222');
+  const tok = await admin();
+  const todos = await (await fetch(base + '/api/despachos?limite=500', { headers: { Authorization: 'Bearer ' + tok } })).json();
+  const ajeno = todos.find(d => d.operador_id && d.operador_id !== op.usuario.id), propio = todos.find(d => d.operador_id === op.usuario.id);
+  assert.ok(ajeno && propio);
+  assert.equal((await fetch(`${base}/api/despachos/${ajeno.id}`, { headers: { Authorization: 'Bearer ' + op.token } })).status, 403);
+  assert.equal((await fetch(`${base}/api/despachos/${propio.id}`, { headers: { Authorization: 'Bearer ' + op.token } })).status, 200);
+  const otraCisterna = todos.find(d => d.cisterna_id !== ch.usuario.cisterna_id);
+  assert.equal((await fetch(`${base}/api/despachos/${otraCisterna.id}`, { headers: { Authorization: 'Bearer ' + ch.token } })).status, 403);
+  assert.equal((await fetch(`${base}/api/despachos/${ajeno.id}`, { headers: { Authorization: 'Bearer ' + tok } })).status, 200);
+});
+
 test('una URL mal formada responde 400 y el servidor sigue vivo', async () => {
   const r = await fetch(base + '/%E0%A4%A');
   assert.equal(r.status, 400);

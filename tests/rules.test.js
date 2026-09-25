@@ -27,6 +27,16 @@ test('fuera de geocerca bloquea con alerta crítica', () => {
   assert.equal(r.rechazar, true);
   assert.ok(r.alertas.some(a => a.tipo === 'fuera_de_geocerca' && a.severidad === 'critica'));
 });
+test('geocerca en 0,0 (base nueva) no bloquea aunque el controlador envíe GPS', () => {
+  const { setParametro, param } = require('../server/db');
+  const lat0 = param('geocerca_lat'), lng0 = param('geocerca_lng');
+  setParametro('geocerca_lat', '0'); setParametro('geocerca_lng', '0');
+  try {
+    const r = reglas.evaluarInicio({ tag: 'X', equipo, cisterna, lat: -33.45, lng: -70.66, ahora: mediodia });
+    assert.equal(r.rechazar, false);
+    assert.ok(!r.alertas.some(a => a.tipo === 'fuera_de_geocerca'));
+  } finally { setParametro('geocerca_lat', lat0); setParametro('geocerca_lng', lng0); }
+});
 test('fuera de horario genera alerta media pero no bloquea', () => {
   const { setParametro } = require('../server/db');
   setParametro('horario_inicio', 5); setParametro('horario_fin', 22);

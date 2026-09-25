@@ -265,9 +265,11 @@ ruta('GET', '/api/despachos', async ({ usuario, url }) => {
     ${where} ORDER BY d.inicio DESC LIMIT ?`).all(...params, ...al.params, limite);
 });
 ruta('GET', '/api/despachos/:id', async ({ usuario, params }) => {
-  requerir(usuario);
+  const u = requerir(usuario);
   const d = q.despachoDetalle.get(Number(params.id));
   if (!d) throw new HttpError(404, 'Despacho no encontrado');
+  // Mismo alcance que la lista: el chofer solo su cisterna, el operador solo sus despachos.
+  if ((u.rol === 'chofer' && d.cisterna_id !== u.cisterna_id) || (u.rol === 'operador' && d.operador_id !== u.id)) throw new HttpError(403, 'Sin permiso para ver este despacho');
   d.alertas = db.prepare('SELECT * FROM alertas WHERE despacho_id = ? ORDER BY ts').all(d.id);
   d.confirmacion = db.prepare('SELECT c.*, u.nombre AS chofer_nombre FROM confirmaciones c LEFT JOIN usuarios u ON u.id = c.chofer_id WHERE c.despacho_id = ?').get(d.id) || null;
   return d;

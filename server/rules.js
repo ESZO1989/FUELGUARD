@@ -41,8 +41,9 @@ function evaluarInicio(ctx) {
       mensaje: `Despacho a ${equipo.codigo} fuera del horario permitido (${hIni}:00–${hFin}:00).` });
   }
 
+  // Geocerca en 0,0 (valor inicial de una base nueva) equivale a "sin geocerca": ningún proyecto está en el golfo de Guinea.
   const gLat = paramNum('geocerca_lat', NaN), gLng = paramNum('geocerca_lng', NaN), radio = paramNum('geocerca_radio_m', 3000);
-  const dist = distanciaM(lat, lng, gLat, gLng);
+  const dist = gLat === 0 && gLng === 0 ? null : distanciaM(lat, lng, gLat, gLng);
   if (dist != null && dist > radio) {
     res.rechazar = true;
     res.alertas.push({ tipo: 'fuera_de_geocerca', severidad: 'critica',
