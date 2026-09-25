@@ -9,7 +9,7 @@ Aplicación para controlar el despacho de combustible desde **camiones cisterna 
 - **Lista de compra del piloto** con proveedores y precios verificados: [docs/LISTA_DE_COMPRA_PILOTO.md](docs/LISTA_DE_COMPRA_PILOTO.md).
 - **Instalación paso a paso** en la cisterna, con tiempos, responsables, problemas frecuentes y checklist de aceptación: [docs/INSTALACION_PASO_A_PASO.md](docs/INSTALACION_PASO_A_PASO.md).
 - **Planes comerciales** por nivel de funcionalidad y tipo de solución, con tarifas, ejemplos de cotización y márgenes: [docs/PLANES_COMERCIALES.md](docs/PLANES_COMERCIALES.md).
-- **Presentaciones** en PDF y PowerPoint (planes comerciales y guía de instalación con capturas y diagramas): [docs/presentaciones/](docs/presentaciones/). Se regeneran con `node build/planes.js`, `node build/instalacion.js` y `build/exportar-pdf.ps1`.
+- **Presentaciones** en PDF y PowerPoint (planes comerciales y guía de instalación con capturas, diagramas y videos de referencia): [docs/presentaciones/](docs/presentaciones/). Se regeneran con `node build/planes.js`, `node build/instalacion.js` y `build/exportar-pdf.ps1`. Versiones editables en línea (Claude Slides): propuesta comercial https://claude.ai/artifact/YBywSwKBfzgkt4XzqroiRy · guía de instalación https://claude.ai/artifact/Df2rLsuiWfFzS3u2X7M6VP (privadas hasta compartirlas).
 
 ## Arranque rápido
 
