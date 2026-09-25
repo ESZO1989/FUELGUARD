@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { URL } = require('node:url');
-const { getDb, hashPin, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH } = require('./db');
+const { getDb, hashPin, verificarPin, esHashAntiguo, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH } = require('./db');
 const reglas = require('./rules');
 
 const PUERTO = Number(process.env.PORT || 3000);
@@ -193,13 +193,14 @@ ruta('POST', '/api/login', async ({ cuerpo, req }) => {
   const reg = intentosLogin.get(clave) || { fallos: 0, hasta: 0, ultimo: 0 };
   if (reg.hasta > Date.now()) throw new HttpError(429, `Demasiados intentos. Espere ${Math.ceil((reg.hasta - Date.now()) / 60e3)} min.`);
   const u = db.prepare('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1').get(login);
-  if (!u || u.pin_hash !== hashPin(pin)) {
+  if (!u || !verificarPin(pin, u.pin_hash)) {
     reg.fallos++; reg.ultimo = Date.now();
     if (reg.fallos >= LOGIN_MAX_FALLOS) { reg.hasta = Date.now() + LOGIN_BLOQUEO_MS; reg.fallos = 0; q.insAuditoria.run(ahoraISO(), u ? u.id : null, 'login_bloqueado', `${login} desde ${ipDe(req)}`); }
     intentosLogin.set(clave, reg);
     throw new HttpError(401, 'Usuario o PIN incorrecto');
   }
   intentosLogin.delete(clave);
+  if (esHashAntiguo(u.pin_hash)) db.prepare('UPDATE usuarios SET pin_hash = ? WHERE id = ?').run(hashPin(pin), u.id);   // migración transparente a scrypt
   const token = crypto.randomBytes(24).toString('hex');
   // "recordar" (tablet del camión): sesión de 30 días en lugar de 12 horas.
   const expira = new Date(Date.now() + (cuerpo.recordar ? 30 * 86400e3 : 12 * 3600e3)).toISOString();
@@ -346,7 +347,8 @@ ruta('POST', '/api/alertas/:id/resolver', async ({ usuario, params, cuerpo }) =>
   const r = db.prepare('UPDATE alertas SET resuelta = 1, resuelta_por = ?, resuelta_ts = ?, nota = ? WHERE id = ? AND resuelta = 0').run(u.id, ahoraISO(), String(cuerpo.nota || '').slice(0, 500), Number(params.id));
   if (!r.changes) throw new HttpError(404, 'Alerta no encontrada o ya resuelta');
   q.insAuditoria.run(ahoraISO(), u.id, 'resolver_alerta', `alerta ${params.id}: ${cuerpo.nota || ''}`);
-  emitir('alerta_resuelta', { id: Number(params.id), resuelta_por_nombre: u.nombre, nota: cuerpo.nota || '' });
+  const al = db.prepare('SELECT a.cisterna_id, e.operador_id FROM alertas a LEFT JOIN equipos e ON e.id = a.equipo_id WHERE a.id = ?').get(Number(params.id)) || {};
+  emitir('alerta_resuelta', { id: Number(params.id), resuelta_por_nombre: u.nombre, nota: cuerpo.nota || '' }, { cisterna_id: al.cisterna_id, operador_id: al.operador_id });
   return { ok: true };
 });
 
@@ -627,6 +629,11 @@ ruta('POST', '/api/usuarios', async ({ usuario, cuerpo }) => {
 });
 ruta('PUT', '/api/usuarios/:id', async ({ usuario, params, cuerpo }) => {
   const u = requerir(usuario, 'admin');
+  const objetivo = db.prepare('SELECT id, rol, activo FROM usuarios WHERE id = ?').get(Number(params.id));
+  if (!objetivo) throw new HttpError(404, 'Usuario no encontrado');
+  const pierdeAdmin = objetivo.rol === 'admin' && objetivo.activo && (('activo' in cuerpo && !cuerpo.activo) || ('rol' in cuerpo && cuerpo.rol !== 'admin'));
+  if (pierdeAdmin && objetivo.id === u.id) throw new HttpError(400, 'No puede desactivar ni cambiar el rol de su propia cuenta');
+  if (pierdeAdmin && db.prepare("SELECT COUNT(*) AS n FROM usuarios WHERE rol = 'admin' AND activo = 1 AND id <> ?").get(objetivo.id).n === 0) throw new HttpError(400, 'Debe quedar al menos un administrador activo');
   const sets = [], vals = [];
   if ('nombre' in cuerpo) { sets.push('nombre = ?'); vals.push(cuerpo.nombre); }
   if ('rol' in cuerpo) { sets.push('rol = ?'); vals.push(cuerpo.rol); }

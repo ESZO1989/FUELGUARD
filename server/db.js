@@ -194,9 +194,20 @@ function estaVacia(db) {
   return db.prepare('SELECT COUNT(*) AS n FROM usuarios').get().n === 0;
 }
 
-function hashPin(pin) {
-  return crypto.createHash('sha256').update('fuelguard:' + String(pin)).digest('hex');
+// PIN: scrypt con sal aleatoria por usuario ("scrypt$sal$hash"). Un PIN de 4 a 8 dígitos sin sal se rompe en segundos si se filtra la base.
+const SCRYPT = { N: 16384, r: 8, p: 1, largo: 32 };
+function hashPin(pin, sal = crypto.randomBytes(16).toString('hex')) {
+  return `scrypt$${sal}$${crypto.scryptSync(String(pin), sal, SCRYPT.largo, SCRYPT).toString('hex')}`;
 }
+// Formato anterior a 2026-09-25: SHA-256 sin sal. Se acepta solo para migrar al primer inicio de sesión.
+function hashPinAntiguo(pin) { return crypto.createHash('sha256').update('fuelguard:' + String(pin)).digest('hex'); }
+function verificarPin(pin, guardado) {
+  if (typeof guardado !== 'string') return false;
+  const calculado = guardado.startsWith('scrypt$') ? hashPin(pin, guardado.split('$')[1]) : hashPinAntiguo(pin);
+  const a = Buffer.from(calculado), b = Buffer.from(guardado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+const esHashAntiguo = guardado => !String(guardado).startsWith('scrypt$');
 
 // ---------- Datos semilla (demostración) ----------
 function sembrar(db) {
@@ -353,4 +364,4 @@ function setParametro(clave, valor) {
   getDb().prepare('INSERT INTO parametros (clave, valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor').run(clave, String(valor));
 }
 
-module.exports = { getDb, hashPin, param, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH };
+module.exports = { getDb, hashPin, verificarPin, esHashAntiguo, param, paramNum, todosParametros, setParametro, generarClaveDispositivo, respaldar, DB_PATH };

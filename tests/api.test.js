@@ -242,6 +242,58 @@ test('el detalle de un despacho respeta el alcance del operador y del chofer', a
   assert.equal((await fetch(`${base}/api/despachos/${ajeno.id}`, { headers: { Authorization: 'Bearer ' + tok } })).status, 200);
 });
 
+test('los PIN se guardan con scrypt y sal; un hash antiguo migra al iniciar sesión', async () => {
+  const { getDb, hashPin, verificarPin } = require('../server/db');
+  const h1 = hashPin('2222'), h2 = hashPin('2222');
+  assert.ok(h1.startsWith('scrypt$') && h1 !== h2, 'sal distinta en cada hash');
+  assert.ok(verificarPin('2222', h1) && !verificarPin('2223', h1));
+  const db = getDb();
+  const antiguo = require('node:crypto').createHash('sha256').update('fuelguard:5150').digest('hex');
+  db.prepare("INSERT INTO usuarios (nombre, usuario, pin_hash, rol) VALUES ('Legado', 'legado', ?, 'operador')").run(antiguo);
+  const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'legado', pin: '5150' }) });
+  assert.equal(r.status, 200);
+  const fila = db.prepare("SELECT pin_hash FROM usuarios WHERE usuario = 'legado'").get();
+  assert.ok(fila.pin_hash.startsWith('scrypt$'), 'migrado a scrypt');
+  assert.ok(verificarPin('5150', fila.pin_hash));
+  const mal = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'legado', pin: '5151' }) });
+  assert.equal(mal.status, 401);
+});
+
+test('un administrador no puede desactivarse ni degradarse a sí mismo', async () => {
+  const tok = await admin();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  const yo = (await (await fetch(base + '/api/me', { headers: h })).json()).usuario;
+  assert.equal((await fetch(`${base}/api/usuarios/${yo.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ activo: 0 }) })).status, 400);
+  assert.equal((await fetch(`${base}/api/usuarios/${yo.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ rol: 'supervisor' }) })).status, 400);
+  assert.equal((await fetch(`${base}/api/usuarios/${yo.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ nombre: 'Admin General' }) })).status, 200);
+  const b = await (await fetch(base + '/api/usuarios', { method: 'POST', headers: h, body: JSON.stringify({ nombre: 'Segundo', usuario: 'admin2', pin: '4321', rol: 'admin' }) })).json();
+  assert.equal((await fetch(`${base}/api/usuarios/${b.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ activo: 0 }) })).status, 200);   // a otro admin sí
+  assert.equal((await fetch(`${base}/api/usuarios/999999`, { method: 'PUT', headers: h, body: JSON.stringify({ activo: 0 }) })).status, 404);
+});
+
+test('la resolución de una alerta solo llega por SSE a quien puede ver la alerta', async () => {
+  const tok = await admin();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  const op = await (await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: 'dsalas', pin: '8888' }) })).json();
+  const alertas = await (await fetch(base + '/api/alertas?limite=1000', { headers: h })).json();
+  const equipos = await (await fetch(base + '/api/equipos', { headers: h })).json();
+  const mios = new Set(equipos.filter(e => e.operador_id === op.usuario.id).map(e => e.id));
+  const ajena = alertas.find(a => !a.resuelta && a.equipo_id && !mios.has(a.equipo_id));
+  const propia = alertas.find(a => !a.resuelta && mios.has(a.equipo_id));
+  assert.ok(ajena && propia, 'hay alertas activas propias y ajenas en la semilla');
+  const ctrl = new AbortController();
+  const stream = await fetch(base + '/api/stream', { headers: { Authorization: 'Bearer ' + op.token }, signal: ctrl.signal });
+  const lector = stream.body.getReader(); let recibido = '';
+  const bombear = (async () => { try { for (;;) { const { value, done } = await lector.read(); if (done) break; recibido += Buffer.from(value).toString(); } } catch {} })();
+  await new Promise(r => setTimeout(r, 100));
+  for (const a of [ajena, propia]) assert.equal((await fetch(`${base}/api/alertas/${a.id}/resolver`, { method: 'POST', headers: h, body: JSON.stringify({ nota: 'revisado' }) })).status, 200);
+  await new Promise(r => setTimeout(r, 300));
+  ctrl.abort(); await bombear;
+  const ids = [...recibido.matchAll(/event: alerta_resuelta\ndata: (\{.*\})/g)].map(m => JSON.parse(m[1]).id);
+  assert.ok(ids.includes(propia.id), 'recibe la de su equipo');
+  assert.ok(!ids.includes(ajena.id), 'no recibe la ajena');
+});
+
 test('una URL mal formada responde 400 y el servidor sigue vivo', async () => {
   const r = await fetch(base + '/%E0%A4%A');
   assert.equal(r.status, 400);
