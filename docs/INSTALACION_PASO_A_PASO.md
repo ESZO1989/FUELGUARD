@@ -70,6 +70,29 @@ Materiales: ver [LISTA_DE_COMPRA_PILOTO.md](LISTA_DE_COMPRA_PILOTO.md). Conexion
 25. **Prueba sin señal**: quitar la antena LTE, hacer un despacho a un tag conocido (autoriza con la lista local), reconectar y comprobar que el despacho se sincroniza con su hora original.
 26. Entregar al chofer la app instalada en la tablet, con sesión recordada, y dejar la documentación del K‑factor, aforo y cableado en la carpeta del vehículo.
 
+## Videos de referencia por etapa
+
+Videos públicos de fabricantes y técnicos que muestran cada procedimiento (verificados en septiembre de 2026; también están con código QR en la presentación `docs/presentaciones/FuelGuard-Guia-Instalacion.pdf`).
+
+| Etapa | Video | Canal | Qué mirar |
+|---|---|---|---|
+| A · firmware | [Cómo instalar PlatformIO en VS Code para ESP32](https://youtu.be/ao42PLgavdo) | Yamir TV | Instalación de PlatformIO y primera grabación; en FuelGuard solo se edita `config.h` |
+| A · placa 4G | [SIM7600G‑H 4G LTE ESP32, LILYGO T‑SIM7600G‑H](https://youtu.be/qz8jcXVtNuY) | Electronic Clinic | Dónde va la SIM, antenas LTE y GPS, alimentación |
+| A · lector RFID | [RFID Readers RDM6300 and RDM630 (Arduino‑Tutorial)](https://youtu.be/l8RDbHd1cak) | Michael Schoeffler | Conexión del RDM6300 y salida serie del tag |
+| B · caudalímetro | [Digital flow meters for fuel presented by PIUSI](https://youtu.be/PkwhzUWP8uE) | Piusi | Familia K600, salida de pulsos, posición en la línea |
+| B · mantenimiento | [Piusi K600 Pulser · Cleaning the Gears](https://youtu.be/OSs0oUbmIqM) | Piusi | Interior del medidor y sentido de flujo |
+| B · electroválvula | [Cómo comprobar una electroválvula](https://youtu.be/vkLoBfkcm_U) | Jorge Román | Prueba de la bobina antes de roscar |
+| B · sensor de nivel | [Submersible pressure level transmitters manual](https://youtu.be/oMFeT2PzwG0) | Holykell | Instalación y conexión de la sonda 4–20 mA |
+| B · RFID en pistola | [B.SMART IdentiTank by Piusi](https://youtu.be/f8mnRFkr7Nc) | Piusi | Tag en el tanque y lector en la pistola: el concepto que replica FuelGuard |
+| B · demostración | [B.SMART demo kit presented by PIUSI](https://youtu.be/N6mRTJTVEbY) | Piusi | Distancia de lectura y comportamiento al retirar la pistola |
+| C · cableado | [PIUSI B.SMART Electrical wiring](https://youtu.be/QuZk-UYsifQ) | Piusi | Alimentación, pulsos y válvula de un sistema equivalente |
+| C · vehículo | [Cómo instalar cualquier GPS en un automóvil o camioneta](https://youtu.be/V94yF1DhnUU) | Weby Servicios | 12/24 V con fusible, fijación de la caja, antena |
+| C · electroválvula | [Cómo funciona una electroválvula o válvula de solenoide](https://youtu.be/qcmB7YRpoFw) | Luis Carlos Galán | Por qué la bobina va por relé con diodo |
+| E · calibración | [Piusi K600 · Calibration](https://youtu.be/DmYBOnf2ark) | Piusi | Procedimiento oficial con recipiente patrón |
+| E · calibración | [Piusi K600 Fuel Flow Meter · Calibration](https://youtu.be/Ks_KHxz97NM) | Centre Tank Services | Consejos de caudal estable y purga de aire |
+
+Los videos propios del piloto (prueba en mesa, encendido, calibración, despacho completo, bloqueo) reemplazarán estos enlaces en la guía.
+
 ---
 
 ## Dónde suele complicarse y cómo resolverlo
