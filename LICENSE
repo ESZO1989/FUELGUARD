@@ -1,0 +1,42 @@
+FuelGuard — Licencia propietaria
+
+Copyright (c) 2026 Edison Zavala. Todos los derechos reservados.
+
+Este software, incluidos su código fuente, firmware, documentación,
+diseños, presentaciones y demás materiales que lo acompañan (en adelante,
+"el Software"), es propiedad exclusiva de Edison Zavala (el "Titular").
+
+1. Prohibición general. Queda prohibido, sin autorización previa, expresa
+   y por escrito del Titular, copiar, reproducir, modificar, distribuir,
+   sublicenciar, vender, arrendar, publicar, poner a disposición de
+   terceros, descompilar, realizar ingeniería inversa o crear obras
+   derivadas del Software, en todo o en parte, por cualquier medio.
+
+2. Uso permitido. El Software solo puede usarse conforme a los términos de
+   un contrato de licencia, suscripción o piloto firmado con el Titular.
+   Ese contrato define el alcance, la duración, el número de cisternas y
+   equipos autorizados y las condiciones de soporte.
+
+3. Confidencialidad. El Software y toda la información técnica y comercial
+   asociada son confidenciales. Quien acceda a ellos se obliga a no
+   divulgarlos ni usarlos para fines distintos de los autorizados.
+
+4. Propiedad intelectual. La entrega del Software, en cualquier forma,
+   no transfiere derechos de propiedad intelectual ni concede licencias
+   implícitas. Las marcas, nombres y logotipos asociados a FuelGuard son
+   propiedad del Titular.
+
+5. Componentes de terceros. El firmware usa bibliotecas de terceros
+   (TinyGSM, ArduinoHttpClient, ArduinoJson y el framework de Arduino para
+   ESP32) que conservan sus propias licencias. El panel web carga Chart.js
+   desde un CDN bajo su licencia MIT. Nada en este documento restringe
+   los derechos que esas licencias otorgan sobre dichos componentes.
+
+6. Garantía y responsabilidad. Salvo que un contrato firmado disponga
+   otra cosa, el Software se entrega "tal cual", sin garantías de ningún
+   tipo, y el Titular no será responsable por daños derivados de su uso.
+
+7. Ley aplicable. Esta licencia se rige por las leyes de la República de
+   Chile.
+
+Contacto para licenciamiento: Edison Zavala.

@@ -106,3 +106,7 @@ Guía completa en [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) (Linux con systemd + 
 6. Reportes por correo: configure `SMTP_*` en `.env` y los destinatarios y horario en Administración → Parámetros.
 
 Incluido de serie: bloqueo por intentos de PIN, cabeceras de seguridad (CSP, HSTS), auditoría y hash encadenado de despachos.
+
+## Licencia
+
+Software propietario. Copyright (c) 2026 Edison Zavala, todos los derechos reservados. Su uso requiere un contrato de licencia, suscripción o piloto firmado con el titular. Ver [LICENSE](LICENSE).
