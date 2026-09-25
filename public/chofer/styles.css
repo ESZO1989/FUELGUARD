@@ -3,7 +3,7 @@
   --bg: #111312; --surface: #1c1f1e; --surface-2: #262a29; --border: #333837;
   --text: #f3f3ee; --text-2: #b9b9b0; --muted: #85867f;
   --accent: #3987e5; --good: #1fb51f; --warn: #fab219; --bad: #e04b4b;
-  --radius: 14px; --font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --radius: 14px; --font: "Manrope", "Segoe UI", system-ui, sans-serif;
 }
 :root[data-theme="light"] {
   color-scheme: light;

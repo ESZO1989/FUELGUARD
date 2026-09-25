@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FuelGuard · Comparación de tipografías</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="http://localhost:3000/styles.css">
+<style>
+  body { padding: 24px 28px 60px; }
+  .intro { max-width: 900px; margin-bottom: 22px; }
+  .intro h1 { font-size: 22px; }
+  .intro p { color: var(--text-2); margin: 6px 0 0; }
+  .opcion { font-family: var(--font); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; background: var(--bg); }
+  .opcion h1, .opcion h2, .opcion .kpi .value, .opcion .nav button { font-family: var(--font-titulos, var(--font)); }
+  .cab { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .cab .nombre { font-size: 18px; font-weight: 600; }
+  .cab .nombre span { display: inline-block; margin-left: 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+  .cab .por { color: var(--muted); font-size: 13px; max-width: 620px; text-align: right; }
+  .fila { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: start; }
+  .navdemo { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 8px; }
+  .navdemo .nav button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 8px; padding: 9px 10px; color: var(--text-2); font-weight: 500; }
+  .navdemo .nav button.active { background: var(--surface-2); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+  .navdemo .nav button svg { width: 18px; height: 18px; flex: none; opacity: 0.8; }
+  .bloque { display: grid; gap: 12px; }
+  .kpis3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .dos { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; }
+  .card { padding: 12px 14px; }
+  .card-head h2 { font-size: 15px; }
+  .alerta { grid-template-columns: auto 1fr; }
+  .muestra { color: var(--text-2); font-size: 13px; margin-top: 2px; }
+  .muestra b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Comparación de tipografías para el dashboard</h1>
+  <p>Mismos componentes, mismos datos, misma hoja de estilos del panel real. Solo cambia la fuente. Fíjate en los números de las tarjetas y de la tabla, en las tildes y en cómo se leen las alertas largas.</p>
+</div>
+
+
+
+<section class="opcion" style="--font: 'Segoe UI', system-ui, sans-serif">
+  <div class="cab"><div class="nombre">Actual<span>como se ve hoy en Windows</span></div><div class="por">El CSS pide Inter, pero no la carga de ningún sitio: en Windows sale Segoe UI y en la tablet Android la fuente del sistema. Cada equipo ve el panel distinto.</div></div>
+  <div class="fila">
+    <div class="navdemo"><nav class="nav">
+      <button class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Panel</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Despachos</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas <span class="badge critica" style="margin-left:auto">2184</span></button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6"/></svg>Reportes</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8"/></svg>Administración</button>
+    </nav></div>
+    <div class="bloque">
+      <div class="kpis3">
+        <div class="kpi"><div class="label">Litros despachados hoy</div><div class="value">106,773<small>L</small></div><div class="sub">730 despachos</div></div>
+        <div class="kpi alert"><div class="label">Alertas activas</div><div class="value">2184</div><div class="sub">751 críticas · 81 despachos bloqueados hoy</div></div>
+        <div class="kpi warn"><div class="label">Merma detectada · 30 días</div><div class="value">231,977<small>L</small></div><div class="sub">USD 278,372 · 28.0 % del despacho</div></div>
+      </div>
+      <div class="dos">
+        <div class="card"><div class="card-head"><h2>Últimos despachos</h2><span class="small muted">Actualización por pulsos del caudalímetro</span></div>
+          <table><thead><tr><th>Inicio</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th class="num">Litros</th><th class="num">L/min</th><th>Estado</th></tr></thead><tbody>
+            <tr><td class="mono">16:23</td><td>CIST-02</td><td><b>EX-01</b></td><td>Juan Torres</td><td class="num mono">120.9</td><td class="num mono">57.8</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:21</td><td>CIST-01</td><td><b>GEN-02</b></td><td>José Vargas</td><td class="num mono">80.0</td><td class="num mono">66.1</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:20</td><td>CIST-01</td><td><b>TR-01</b></td><td>Rosa Huamán</td><td class="num mono">557.0</td><td class="num mono">61.2</td><td><span class="badge critica">cortado</span> <span class="badge alta">1</span></td></tr>
+            <tr><td class="mono">16:18</td><td>CIST-02</td><td><b>—</b></td><td>—</td><td class="num mono">0.0</td><td class="num mono">—</td><td><span class="badge critica">bloqueado</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card"><div class="card-head"><h2>Alertas recientes</h2></div>
+          <div class="alertas-lista">
+            <div class="alerta"><div class="icono critica">!</div><div><div class="msg">Caída de nivel de 90 L en CIST-01 sin despacho en curso. Posible robo directo de la cisterna.</div><div class="meta"><span>25/09, 16:19</span><span>CIST-01</span><span>90 L afectados</span></div></div></div>
+            <div class="alerta"><div class="icono alta">!</div><div><div class="msg">TR-01 consumió 129.0 L/h en las últimas 4.3 h (nominal 32 L/h). Posible sifoneo del tanque del equipo.</div><div class="meta"><span>25/09, 16:20</span><span>TR-01</span></div></div></div>
+          </div>
+          <div class="muestra">Ñandú, camión, señal, Huamán · <b>0O 1lI 6G 8B</b> · 12,690 L · USD 1.20/L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="opcion" style="--font: 'IBM Plex Sans', sans-serif; --font-titulos: 'Rubik', sans-serif">
+  <div class="cab"><div class="nombre">Opción A<span>Rubik + IBM Plex Sans</span></div><div class="por">La misma pareja de las presentaciones comerciales y de la guía de instalación: títulos y cifras en Rubik, texto en IBM Plex Sans. El panel se ve de la misma familia que lo que el cliente ya vio en la propuesta.</div></div>
+  <div class="fila">
+    <div class="navdemo"><nav class="nav">
+      <button class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Panel</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Despachos</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas <span class="badge critica" style="margin-left:auto">2184</span></button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6"/></svg>Reportes</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8"/></svg>Administración</button>
+    </nav></div>
+    <div class="bloque">
+      <div class="kpis3">
+        <div class="kpi"><div class="label">Litros despachados hoy</div><div class="value">106,773<small>L</small></div><div class="sub">730 despachos</div></div>
+        <div class="kpi alert"><div class="label">Alertas activas</div><div class="value">2184</div><div class="sub">751 críticas · 81 despachos bloqueados hoy</div></div>
+        <div class="kpi warn"><div class="label">Merma detectada · 30 días</div><div class="value">231,977<small>L</small></div><div class="sub">USD 278,372 · 28.0 % del despacho</div></div>
+      </div>
+      <div class="dos">
+        <div class="card"><div class="card-head"><h2>Últimos despachos</h2><span class="small muted">Actualización por pulsos del caudalímetro</span></div>
+          <table><thead><tr><th>Inicio</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th class="num">Litros</th><th class="num">L/min</th><th>Estado</th></tr></thead><tbody>
+            <tr><td class="mono">16:23</td><td>CIST-02</td><td><b>EX-01</b></td><td>Juan Torres</td><td class="num mono">120.9</td><td class="num mono">57.8</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:21</td><td>CIST-01</td><td><b>GEN-02</b></td><td>José Vargas</td><td class="num mono">80.0</td><td class="num mono">66.1</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:20</td><td>CIST-01</td><td><b>TR-01</b></td><td>Rosa Huamán</td><td class="num mono">557.0</td><td class="num mono">61.2</td><td><span class="badge critica">cortado</span> <span class="badge alta">1</span></td></tr>
+            <tr><td class="mono">16:18</td><td>CIST-02</td><td><b>—</b></td><td>—</td><td class="num mono">0.0</td><td class="num mono">—</td><td><span class="badge critica">bloqueado</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card"><div class="card-head"><h2>Alertas recientes</h2></div>
+          <div class="alertas-lista">
+            <div class="alerta"><div class="icono critica">!</div><div><div class="msg">Caída de nivel de 90 L en CIST-01 sin despacho en curso. Posible robo directo de la cisterna.</div><div class="meta"><span>25/09, 16:19</span><span>CIST-01</span><span>90 L afectados</span></div></div></div>
+            <div class="alerta"><div class="icono alta">!</div><div><div class="msg">TR-01 consumió 129.0 L/h en las últimas 4.3 h (nominal 32 L/h). Posible sifoneo del tanque del equipo.</div><div class="meta"><span>25/09, 16:20</span><span>TR-01</span></div></div></div>
+          </div>
+          <div class="muestra">Ñandú, camión, señal, Huamán · <b>0O 1lI 6G 8B</b> · 12,690 L · USD 1.20/L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="opcion" style="--font: 'Manrope', sans-serif">
+  <div class="cab"><div class="nombre">Opción B<span>Manrope</span></div><div class="por">Una sola familia, geométrica y compacta, con números tabulares muy claros. Es la que más "instrumento de medición" transmite; funciona igual de bien en la tablet.</div></div>
+  <div class="fila">
+    <div class="navdemo"><nav class="nav">
+      <button class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Panel</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Despachos</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas <span class="badge critica" style="margin-left:auto">2184</span></button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6"/></svg>Reportes</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8"/></svg>Administración</button>
+    </nav></div>
+    <div class="bloque">
+      <div class="kpis3">
+        <div class="kpi"><div class="label">Litros despachados hoy</div><div class="value">106,773<small>L</small></div><div class="sub">730 despachos</div></div>
+        <div class="kpi alert"><div class="label">Alertas activas</div><div class="value">2184</div><div class="sub">751 críticas · 81 despachos bloqueados hoy</div></div>
+        <div class="kpi warn"><div class="label">Merma detectada · 30 días</div><div class="value">231,977<small>L</small></div><div class="sub">USD 278,372 · 28.0 % del despacho</div></div>
+      </div>
+      <div class="dos">
+        <div class="card"><div class="card-head"><h2>Últimos despachos</h2><span class="small muted">Actualización por pulsos del caudalímetro</span></div>
+          <table><thead><tr><th>Inicio</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th class="num">Litros</th><th class="num">L/min</th><th>Estado</th></tr></thead><tbody>
+            <tr><td class="mono">16:23</td><td>CIST-02</td><td><b>EX-01</b></td><td>Juan Torres</td><td class="num mono">120.9</td><td class="num mono">57.8</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:21</td><td>CIST-01</td><td><b>GEN-02</b></td><td>José Vargas</td><td class="num mono">80.0</td><td class="num mono">66.1</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:20</td><td>CIST-01</td><td><b>TR-01</b></td><td>Rosa Huamán</td><td class="num mono">557.0</td><td class="num mono">61.2</td><td><span class="badge critica">cortado</span> <span class="badge alta">1</span></td></tr>
+            <tr><td class="mono">16:18</td><td>CIST-02</td><td><b>—</b></td><td>—</td><td class="num mono">0.0</td><td class="num mono">—</td><td><span class="badge critica">bloqueado</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card"><div class="card-head"><h2>Alertas recientes</h2></div>
+          <div class="alertas-lista">
+            <div class="alerta"><div class="icono critica">!</div><div><div class="msg">Caída de nivel de 90 L en CIST-01 sin despacho en curso. Posible robo directo de la cisterna.</div><div class="meta"><span>25/09, 16:19</span><span>CIST-01</span><span>90 L afectados</span></div></div></div>
+            <div class="alerta"><div class="icono alta">!</div><div><div class="msg">TR-01 consumió 129.0 L/h en las últimas 4.3 h (nominal 32 L/h). Posible sifoneo del tanque del equipo.</div><div class="meta"><span>25/09, 16:20</span><span>TR-01</span></div></div></div>
+          </div>
+          <div class="muestra">Ñandú, camión, señal, Huamán · <b>0O 1lI 6G 8B</b> · 12,690 L · USD 1.20/L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="opcion" style="--font: 'Public Sans', sans-serif">
+  <div class="cab"><div class="nombre">Opción C<span>Public Sans</span></div><div class="por">Neutra y muy legible en tamaños pequeños, diseñada para formularios y tablas de gobierno. La más cercana a lo actual sin depender del sistema operativo.</div></div>
+  <div class="fila">
+    <div class="navdemo"><nav class="nav">
+      <button class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Panel</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Despachos</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2L12 3zM12 10v4M12 17.5v.5"/></svg>Alertas <span class="badge critica" style="margin-left:auto">2184</span></button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6"/></svg>Reportes</button>
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8"/></svg>Administración</button>
+    </nav></div>
+    <div class="bloque">
+      <div class="kpis3">
+        <div class="kpi"><div class="label">Litros despachados hoy</div><div class="value">106,773<small>L</small></div><div class="sub">730 despachos</div></div>
+        <div class="kpi alert"><div class="label">Alertas activas</div><div class="value">2184</div><div class="sub">751 críticas · 81 despachos bloqueados hoy</div></div>
+        <div class="kpi warn"><div class="label">Merma detectada · 30 días</div><div class="value">231,977<small>L</small></div><div class="sub">USD 278,372 · 28.0 % del despacho</div></div>
+      </div>
+      <div class="dos">
+        <div class="card"><div class="card-head"><h2>Últimos despachos</h2><span class="small muted">Actualización por pulsos del caudalímetro</span></div>
+          <table><thead><tr><th>Inicio</th><th>Cisterna</th><th>Equipo</th><th>Operador</th><th class="num">Litros</th><th class="num">L/min</th><th>Estado</th></tr></thead><tbody>
+            <tr><td class="mono">16:23</td><td>CIST-02</td><td><b>EX-01</b></td><td>Juan Torres</td><td class="num mono">120.9</td><td class="num mono">57.8</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:21</td><td>CIST-01</td><td><b>GEN-02</b></td><td>José Vargas</td><td class="num mono">80.0</td><td class="num mono">66.1</td><td><span class="badge ok">completado</span></td></tr>
+            <tr><td class="mono">16:20</td><td>CIST-01</td><td><b>TR-01</b></td><td>Rosa Huamán</td><td class="num mono">557.0</td><td class="num mono">61.2</td><td><span class="badge critica">cortado</span> <span class="badge alta">1</span></td></tr>
+            <tr><td class="mono">16:18</td><td>CIST-02</td><td><b>—</b></td><td>—</td><td class="num mono">0.0</td><td class="num mono">—</td><td><span class="badge critica">bloqueado</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card"><div class="card-head"><h2>Alertas recientes</h2></div>
+          <div class="alertas-lista">
+            <div class="alerta"><div class="icono critica">!</div><div><div class="msg">Caída de nivel de 90 L en CIST-01 sin despacho en curso. Posible robo directo de la cisterna.</div><div class="meta"><span>25/09, 16:19</span><span>CIST-01</span><span>90 L afectados</span></div></div></div>
+            <div class="alerta"><div class="icono alta">!</div><div><div class="msg">TR-01 consumió 129.0 L/h en las últimas 4.3 h (nominal 32 L/h). Posible sifoneo del tanque del equipo.</div><div class="meta"><span>25/09, 16:20</span><span>TR-01</span></div></div></div>
+          </div>
+          <div class="muestra">Ñandú, camión, señal, Huamán · <b>0O 1lI 6G 8B</b> · 12,690 L · USD 1.20/L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

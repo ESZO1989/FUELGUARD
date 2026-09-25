@@ -1,6 +1,6 @@
 // Service worker de la app del chofer: guarda la interfaz para abrirla sin conexión.
 // Las llamadas a /api/ siempre van a la red; la app encola lo que no pudo enviar.
-const CACHE = 'fg-chofer-v1';
+const CACHE = 'fg-chofer-v2';
 const SHELL = ['/chofer/', '/chofer/index.html', '/chofer/app.js', '/chofer/styles.css', '/chofer/manifest.webmanifest', '/chofer/icon.svg'];
 
 self.addEventListener('install', e => {
@@ -11,6 +11,11 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+  // Tipografía de Google Fonts: caché primero, para que la tablet sin señal siga viendo la misma letra.
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => { const copia = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copia)); return r; })));
+    return;
+  }
   if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return;   // red directa
   if (!url.pathname.startsWith('/chofer')) return;
   // Red primero (para recibir actualizaciones), caché si no hay conexión.

@@ -18,7 +18,7 @@
   --serious: #ec835a;
   --critical: #d03b3b;
   --radius: 10px;
-  --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;   /* Manrope se carga desde Google Fonts; sin red se usa la del sistema */
   --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
 }
 :root[data-theme="light"] {
