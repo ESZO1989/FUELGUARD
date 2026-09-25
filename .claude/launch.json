@@ -4,7 +4,17 @@
     {
       "name": "fuelguard",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["server/index.js"],
+      "runtimeArgs": [
+        "server/index.js"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "fuelguard-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/dev.js"
+      ],
       "port": 3000
     }
   ]
