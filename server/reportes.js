@@ -14,18 +14,20 @@ const TIPOS_MERMA = "('merma_cisterna','descuadre_caudalimetro','sobrellenado','
 
 // Rango de fechas por nombre. Devuelve ISO (UTC) a partir de hora local.
 function rango(tipo, desdeStr, hastaStr) {
-  const ini = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  // 'AAAA-MM-DD' se interpreta como fecha local (new Date la tomaría como UTC y en Chile caería en el día anterior).
+  const ini = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d)); const x = m ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  const sumar = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };   // por días de calendario, no por 24 h (cambio de hora)
   const hoy = ini(new Date()); let desde, hasta, etiqueta;
   switch (tipo) {
-    case 'hoy': desde = hoy; hasta = new Date(hoy.getTime() + 86400e3); etiqueta = `Hoy ${fDia(desde)}`; break;
-    case 'ayer': desde = new Date(hoy.getTime() - 86400e3); hasta = hoy; etiqueta = `Ayer ${fDia(desde)}`; break;
-    case 'semana': desde = new Date(hoy.getTime() - 6 * 86400e3); hasta = new Date(hoy.getTime() + 86400e3); etiqueta = `Últimos 7 días (${fDia(desde)} – ${fDia(hoy)})`; break;
-    case 'semana_anterior': { const fin = new Date(hoy.getTime() - ((hoy.getDay() + 6) % 7) * 86400e3); desde = new Date(fin.getTime() - 7 * 86400e3); hasta = fin; etiqueta = `Semana anterior (${fDia(desde)} – ${fDia(new Date(hasta - 1))})`; break; }
-    case 'mes': desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1); hasta = new Date(hoy.getTime() + 86400e3); etiqueta = `Mes actual (${fDia(desde)} – ${fDia(hoy)})`; break;
+    case 'hoy': desde = hoy; hasta = sumar(hoy, 1); etiqueta = `Hoy ${fDia(desde)}`; break;
+    case 'ayer': desde = sumar(hoy, -1); hasta = hoy; etiqueta = `Ayer ${fDia(desde)}`; break;
+    case 'semana': desde = sumar(hoy, -6); hasta = sumar(hoy, 1); etiqueta = `Últimos 7 días (${fDia(desde)} – ${fDia(hoy)})`; break;
+    case 'semana_anterior': { const fin = sumar(hoy, -((hoy.getDay() + 6) % 7)); desde = sumar(fin, -7); hasta = fin; etiqueta = `Semana anterior (${fDia(desde)} – ${fDia(new Date(hasta - 1))})`; break; }
+    case 'mes': desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1); hasta = sumar(hoy, 1); etiqueta = `Mes actual (${fDia(desde)} – ${fDia(hoy)})`; break;
     case 'mes_anterior': desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1); hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 1); etiqueta = `Mes anterior (${fDia(desde)} – ${fDia(new Date(hasta - 1))})`; break;
     default: {
-      desde = desdeStr ? ini(desdeStr) : new Date(hoy.getTime() - 6 * 86400e3);
-      hasta = hastaStr ? new Date(ini(hastaStr).getTime() + 86400e3) : new Date(hoy.getTime() + 86400e3);
+      desde = desdeStr ? ini(desdeStr) : sumar(hoy, -6);
+      hasta = hastaStr ? sumar(ini(hastaStr), 1) : sumar(hoy, 1);
       if (!(desde < hasta)) throw new Error('Rango de fechas inválido');
       etiqueta = `${fDia(desde)} – ${fDia(new Date(hasta - 1))}`;
     }

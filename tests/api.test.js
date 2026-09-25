@@ -227,3 +227,59 @@ test('cinco PIN incorrectos bloquean el usuario 15 minutos', async () => {
   const aud = await (await fetch(base + '/api/auditoria', { headers: { Authorization: 'Bearer ' + tok } })).json();
   assert.ok(aud.some(a => a.accion === 'login_bloqueado'));
 });
+
+test('una URL mal formada responde 400 y el servidor sigue vivo', async () => {
+  const r = await fetch(base + '/%E0%A4%A');
+  assert.equal(r.status, 400);
+  const vivo = await fetch(base + '/api/salud');
+  assert.equal(vivo.status, 200);
+});
+
+test('el cuerpo debe ser un objeto JSON; los errores internos no exponen detalles', async () => {
+  const tok = await admin();
+  for (const cuerpo of ['[1,2]', 'null', '"texto"', '{no es json']) {
+    const r = await fetch(base + '/api/recargas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: cuerpo });
+    assert.equal(r.status, 400, cuerpo);
+  }
+  // rol fuera del CHECK de la base: antes devolvía el mensaje de SQLite, ahora un 500 genérico
+  const r = await fetch(base + '/api/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ nombre: 'X', usuario: 'xrol', pin: '1234', rol: 'gerente' }) });
+  assert.equal(r.status, 500);
+  assert.equal((await r.json()).error, 'Error interno');
+});
+
+test('el controlador no puede enviar litros, pulsos, nivel ni coordenadas mal formados', async () => {
+  const wl = (await dev('GET', '/api/dispositivo/whitelist')).data.equipos[1];
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/inicio', { tag: wl.tag, nivel: 'lleno' })).status, 400);
+  assert.equal((await dev('POST', '/api/dispositivo/heartbeat', { lat: 'norte', lng: -71 })).status, 400);
+  const ini = await dev('POST', '/api/dispositivo/despacho/inicio', { tag: wl.tag, lat: -16.409, lng: -71.5375, nivel: 7000 });
+  assert.equal(ini.data.autorizado, true);
+  const id = ini.data.despacho_id;
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/pulso', { despacho_id: id, litros: 'abc' })).status, 400);
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/pulso', { despacho_id: id, litros: -5 })).status, 400);
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/pulso', { despacho_id: id })).status, 400);
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/pulso', { despacho_id: id, litros: 30, caudal: 50 })).status, 200);
+  assert.equal((await dev('POST', '/api/dispositivo/despacho/fin', { despacho_id: id, litros: 30, nivel: 'x' })).status, 400);
+  const fin = await dev('POST', '/api/dispositivo/despacho/fin', { despacho_id: id, litros: 30, pulsos: 3000, nivel: 6970, motivo: 'normal' });
+  assert.equal(fin.status, 200);
+  assert.equal((await dev('POST', '/api/dispositivo/nivel', { nivel: 'vacío' })).status, 400);
+  assert.equal((await dev('POST', '/api/dispositivo/recarga', { litros: 100, nivel_despues: 'no' })).status, 400);
+});
+
+test('parámetros ?dias= inválidos usan el valor por defecto y los PUT validan números', async () => {
+  const tok = await admin();
+  const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+  for (const ruta of ['/api/consumo/por-equipo?dias=abc', '/api/consumo/por-dia?dias=-3', '/api/balance?dias=999999']) {
+    const r = await fetch(base + ruta, { headers: h });
+    assert.equal(r.status, 200, ruta);
+    assert.ok(Array.isArray(await r.json()));
+  }
+  const eq = (await (await fetch(base + '/api/equipos', { headers: h })).json())[0];
+  assert.equal((await fetch(`${base}/api/equipos/${eq.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ capacidad_tanque: 'grande' }) })).status, 400);
+  assert.equal((await fetch(`${base}/api/equipos/${eq.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ capacidad_tanque: '0' }) })).status, 400);
+  const ok = await fetch(`${base}/api/equipos/${eq.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ capacidad_tanque: '450', activo: '1' }) });
+  assert.equal(ok.status, 200);
+  const e2 = await ok.json();
+  assert.equal(e2.capacidad_tanque, 450); assert.equal(typeof e2.capacidad_tanque, 'number'); assert.equal(e2.activo, 1);
+  const cis = (await (await fetch(base + '/api/cisternas', { headers: h })).json())[0];
+  assert.equal((await fetch(`${base}/api/cisternas/${cis.id}`, { method: 'PUT', headers: h, body: JSON.stringify({ k_factor: 'cien' }) })).status, 400);
+});

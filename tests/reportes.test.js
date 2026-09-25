@@ -161,3 +161,16 @@ test('sin SMTP configurado el envío informa cómo configurarlo', async () => {
   assert.ok((await r.json()).error.includes('SMTP_HOST'));
   setParametro('reporte_destinatarios', 'a@b.co');
 });
+
+test('las fechas AAAA-MM-DD del rango personalizado son días locales completos', () => {
+  const c = reportes.rango('personalizado', '2026-09-01', '2026-09-03');
+  const desde = new Date(c.desde), hasta = new Date(c.hasta);
+  assert.deepEqual([desde.getFullYear(), desde.getMonth() + 1, desde.getDate(), desde.getHours()], [2026, 9, 1, 0]);
+  assert.deepEqual([hasta.getMonth() + 1, hasta.getDate(), hasta.getHours()], [9, 4, 0]);
+  assert.equal(c.dias, 3);
+  // los rangos por nombre empiezan y terminan a medianoche local aunque haya cambio de hora en medio
+  for (const t of ['hoy', 'ayer', 'semana', 'semana_anterior', 'mes', 'mes_anterior']) {
+    const r = reportes.rango(t);
+    assert.equal(new Date(r.desde).getHours(), 0, t); assert.equal(new Date(r.hasta).getHours(), 0, t);
+  }
+});

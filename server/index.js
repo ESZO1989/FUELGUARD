@@ -32,6 +32,16 @@ const ahoraISO = () => new Date().toISOString();
 const inicioDelDia = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString(); };
 const haceDias = n => { const x = new Date(); x.setDate(x.getDate() - n); x.setHours(0, 0, 0, 0); return x.toISOString(); };
 const r1 = n => Math.round(n * 10) / 10;
+// Número finito enviado por el controlador o la tablet; null si el campo no viene. Lanza 400 si viene mal formado o fuera de rango.
+function numOpc(v, nombre, { min = 0 } = {}) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < min) throw new HttpError(400, `${nombre} inválido`);
+  return n;
+}
+const coordOpc = (v, nombre) => numOpc(v, nombre, { min: -180 });
+// Parámetro ?dias= acotado a 1–366; cualquier otra cosa usa el valor por defecto.
+const diasDe = (url, porDefecto) => { const n = Math.floor(Number(url.searchParams.get('dias'))); return n >= 1 && n <= 366 ? n : porDefecto; };
 
 function json(res, codigo, cuerpo) {
   const data = JSON.stringify(cuerpo);
@@ -45,7 +55,8 @@ function ipDe(req) {
 // Bloqueo por intentos fallidos de PIN: 5 fallos por IP+usuario → 15 minutos.
 const intentosLogin = new Map();
 const LOGIN_MAX_FALLOS = 5, LOGIN_BLOQUEO_MS = 15 * 60e3;
-setInterval(() => { const ahora = Date.now(); for (const [k, v] of intentosLogin) if (v.hasta && v.hasta < ahora) intentosLogin.delete(k); }, 60e3).unref();
+// Se descartan los bloqueos vencidos y los contadores sin actividad reciente, para que el mapa no crezca sin límite con usuarios inventados.
+setInterval(() => { const ahora = Date.now(); for (const [k, v] of intentosLogin) if ((v.hasta || v.ultimo + LOGIN_BLOQUEO_MS) < ahora) intentosLogin.delete(k); }, 60e3).unref();
 class HttpError extends Error { constructor(codigo, msg) { super(msg); this.codigo = codigo; } }
 
 function leerCuerpo(req) {
@@ -54,7 +65,9 @@ function leerCuerpo(req) {
     req.on('data', c => { data += c; if (data.length > 1e6) { reject(new HttpError(413, 'Cuerpo demasiado grande')); req.destroy(); } });
     req.on('end', () => {
       if (!data) return resolve({});
-      try { resolve(JSON.parse(data)); } catch { reject(new HttpError(400, 'JSON inválido')); }
+      let obj; try { obj = JSON.parse(data); } catch { return reject(new HttpError(400, 'JSON inválido')); }
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return reject(new HttpError(400, 'El cuerpo debe ser un objeto JSON'));
+      resolve(obj);
     });
     req.on('error', reject);
   });
@@ -177,11 +190,11 @@ ruta('POST', '/api/login', async ({ cuerpo, req }) => {
   const { usuario, pin } = cuerpo;
   const login = String(usuario || '').trim().toLowerCase();
   const clave = `${ipDe(req)}|${login}`;
-  const reg = intentosLogin.get(clave) || { fallos: 0, hasta: 0 };
+  const reg = intentosLogin.get(clave) || { fallos: 0, hasta: 0, ultimo: 0 };
   if (reg.hasta > Date.now()) throw new HttpError(429, `Demasiados intentos. Espere ${Math.ceil((reg.hasta - Date.now()) / 60e3)} min.`);
   const u = db.prepare('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1').get(login);
   if (!u || u.pin_hash !== hashPin(pin)) {
-    reg.fallos++;
+    reg.fallos++; reg.ultimo = Date.now();
     if (reg.fallos >= LOGIN_MAX_FALLOS) { reg.hasta = Date.now() + LOGIN_BLOQUEO_MS; reg.fallos = 0; q.insAuditoria.run(ahoraISO(), u ? u.id : null, 'login_bloqueado', `${login} desde ${ipDe(req)}`); }
     intentosLogin.set(clave, reg);
     throw new HttpError(401, 'Usuario o PIN incorrecto');
@@ -338,7 +351,7 @@ ruta('POST', '/api/alertas/:id/resolver', async ({ usuario, params, cuerpo }) =>
 // --- Consumo agregado ---
 ruta('GET', '/api/consumo/por-equipo', async ({ usuario, url }) => {
   const u = requerir(usuario); const al = alcanceDespachos(u);
-  const dias = Number(url.searchParams.get('dias') || 7);
+  const dias = diasDe(url, 7);
   return db.prepare(`SELECT e.id, e.codigo, e.nombre, e.tipo, e.consumo_nominal_lph, e.capacidad_tanque, uo.nombre AS operador,
       COALESCE(SUM(d.litros),0) AS litros, COUNT(d.id) AS despachos,
       COALESCE(SUM(CASE WHEN d.horometro > d.horometro_anterior THEN d.horometro - d.horometro_anterior END),0) AS horas
@@ -350,7 +363,7 @@ ruta('GET', '/api/consumo/por-equipo', async ({ usuario, url }) => {
 });
 ruta('GET', '/api/consumo/por-usuario', async ({ usuario, url }) => {
   const u = requerir(usuario); const al = alcanceDespachos(u);
-  const dias = Number(url.searchParams.get('dias') || 7);
+  const dias = diasDe(url, 7);
   return db.prepare(`SELECT uo.id, uo.nombre, uo.rol, COALESCE(SUM(d.litros),0) AS litros, COUNT(d.id) AS despachos,
       COUNT(DISTINCT d.equipo_id) AS equipos,
       (SELECT COUNT(*) FROM alertas a JOIN equipos e2 ON e2.id = a.equipo_id WHERE e2.operador_id = uo.id AND a.ts >= ?) AS alertas
@@ -360,7 +373,7 @@ ruta('GET', '/api/consumo/por-usuario', async ({ usuario, url }) => {
 });
 ruta('GET', '/api/consumo/por-dia', async ({ usuario, url }) => {
   const u = requerir(usuario); const al = alcanceDespachos(u);
-  const dias = Number(url.searchParams.get('dias') || 14);
+  const dias = diasDe(url, 14);
   const filas = db.prepare(`SELECT d.inicio, d.litros FROM despachos d WHERE d.estado IN ('completado','cortado') AND d.inicio >= ?${al.sql}`).all(haceDias(dias - 1), ...al.params);
   const buckets = new Map();
   for (let i = dias - 1; i >= 0; i--) { const k = haceDias(i).slice(0, 10); buckets.set(k, 0); }
@@ -376,7 +389,7 @@ ruta('GET', '/api/consumo/por-hora', async ({ usuario }) => {
 });
 ruta('GET', '/api/balance', async ({ usuario, url }) => {
   const u = requerir(usuario, 'admin', 'supervisor', 'chofer');
-  const dias = Number(url.searchParams.get('dias') || 7);
+  const dias = diasDe(url, 7);
   const desde = haceDias(dias - 1);
   let cisternas = db.prepare('SELECT * FROM cisternas ORDER BY codigo').all();
   if (u.rol === 'chofer') cisternas = cisternas.filter(c => c.id === u.cisterna_id);
@@ -421,7 +434,14 @@ ruta('PUT', '/api/equipos/:id', async ({ usuario, params, cuerpo }) => {
   const e = q.equipoPorId.get(Number(params.id)); if (!e) throw new HttpError(404, 'Equipo no encontrado');
   const campos = ['nombre', 'tipo', 'capacidad_tanque', 'tag_rfid', 'operador_id', 'consumo_nominal_lph', 'horometro', 'activo'];
   const sets = [], vals = [];
-  for (const c of campos) if (c in cuerpo) { sets.push(`${c} = ?`); vals.push(cuerpo[c] === '' ? null : cuerpo[c]); }
+  for (const c of campos) if (c in cuerpo) {
+    let v = cuerpo[c] === '' ? null : cuerpo[c];
+    if (c === 'activo') v = Number(v) ? 1 : 0;
+    else if (['capacidad_tanque', 'consumo_nominal_lph', 'horometro', 'operador_id'].includes(c) && v != null) { v = Number(v); if (!Number.isFinite(v)) throw new HttpError(400, `${c} inválido`); }
+    if (c === 'capacidad_tanque' && !(v > 0)) throw new HttpError(400, 'capacidad_tanque debe ser mayor que 0');
+    if (c === 'tag_rfid' && v != null) v = String(v).toUpperCase();
+    sets.push(`${c} = ?`); vals.push(v);
+  }
   if (!sets.length) throw new HttpError(400, 'Nada que actualizar');
   try { db.prepare(`UPDATE equipos SET ${sets.join(', ')} WHERE id = ?`).run(...vals, e.id); }
   catch (er) { if (/UNIQUE/.test(er.message)) throw new HttpError(409, 'Tag RFID ya asignado a otro equipo'); throw er; }
@@ -455,7 +475,12 @@ ruta('PUT', '/api/cisternas/:id', async ({ usuario, params, cuerpo }) => {
   const u = requerir(usuario, 'admin');
   const c = q.cisternaPorId.get(Number(params.id)); if (!c) throw new HttpError(404, 'Cisterna no encontrada');
   const sets = [], vals = [];
-  for (const k of CAMPOS_CISTERNA) if (k in cuerpo) { sets.push(`${k} = ?`); vals.push(cuerpo[k] === '' ? null : cuerpo[k]); }
+  for (const k of CAMPOS_CISTERNA) if (k in cuerpo) {
+    let v = cuerpo[k] === '' ? null : cuerpo[k];
+    if (k !== 'placa' && v != null) { v = Number(v); if (!Number.isFinite(v)) throw new HttpError(400, `${k} inválido`); }
+    if (k === 'capacidad' && !(v > 0)) throw new HttpError(400, 'capacidad debe ser mayor que 0');
+    sets.push(`${k} = ?`); vals.push(v);
+  }
   if (!sets.length) throw new HttpError(400, 'Nada que actualizar');
   db.prepare(`UPDATE cisternas SET ${sets.join(', ')} WHERE id = ?`).run(...vals, c.id);
   q.insAuditoria.run(ahoraISO(), u.id, 'editar_cisterna', `${c.codigo}: ${Object.keys(cuerpo).join(',')}`);
@@ -668,7 +693,7 @@ ruta('GET', '/api/dispositivo/whitelist', async ({ req }) => {
 });
 ruta('POST', '/api/dispositivo/heartbeat', async ({ req, cuerpo }) => {
   const c = cisternaDesde(req);
-  db.prepare('UPDATE cisternas SET en_linea = 1, ultima_lectura = ?, lat = COALESCE(?, lat), lng = COALESCE(?, lng) WHERE id = ?').run(ahoraISO(), cuerpo.lat ?? null, cuerpo.lng ?? null, c.id);
+  db.prepare('UPDATE cisternas SET en_linea = 1, ultima_lectura = ?, lat = COALESCE(?, lat), lng = COALESCE(?, lng) WHERE id = ?').run(ahoraISO(), coordOpc(cuerpo.lat, 'lat'), coordOpc(cuerpo.lng, 'lng'), c.id);
   // El controlador recibe el último nivel conocido y su configuración para operar coherente tras un reinicio.
   return { ok: true, hora_servidor: ahoraISO(), cisterna: { codigo: c.codigo, capacidad: c.capacidad, nivel_actual: c.nivel_actual, k_factor: c.k_factor, caudal_min: c.caudal_min, caudal_max: c.caudal_max } };
 });
@@ -680,11 +705,11 @@ ruta('POST', '/api/dispositivo/despacho/inicio', async ({ req, cuerpo }) => {
   if (enCurso) throw new HttpError(409, `Ya hay un despacho en curso (#${enCurso.id}) en ${cisterna.codigo}`);
   const equipo = tag ? q.equipoPorTag.get(tag) : null;
   const ultimo = equipo ? q.ultimoDespachoEquipo.get(equipo.id) : null;
-  const lat = cuerpo.lat ?? cisterna.lat, lng = cuerpo.lng ?? cisterna.lng;
+  const lat = coordOpc(cuerpo.lat, 'lat') ?? cisterna.lat, lng = coordOpc(cuerpo.lng, 'lng') ?? cisterna.lng;
   const tsInicio = tsDispositivo(cuerpo);
   const ev = reglas.evaluarInicio({ tag, equipo, cisterna, lat, lng, ahora: new Date(tsInicio), ultimoDespachoEquipo: ultimo });
-  const nivelAntes = cuerpo.nivel ?? cisterna.nivel_actual;
-  const horometro = cuerpo.horometro != null ? Number(cuerpo.horometro) : null;
+  const nivelAntes = numOpc(cuerpo.nivel, 'nivel') ?? cisterna.nivel_actual;
+  const horometro = numOpc(cuerpo.horometro, 'horometro');
   const r = q.insDespacho.run(cisterna.id, equipo ? equipo.id : null, tag, cisterna.chofer_id, equipo ? equipo.operador_id : null, tsInicio, 0, 0, lat, lng,
     horometro, equipo ? equipo.horometro : null, nivelAntes, ev.rechazar ? 'rechazado' : 'en_curso', ev.rechazar ? ev.alertas.map(a => a.tipo).join(',') : null);
   const id = Number(r.lastInsertRowid);
@@ -703,9 +728,10 @@ ruta('POST', '/api/dispositivo/despacho/pulso', async ({ req, cuerpo }) => {
   const d = q.despachoPorId.get(Number(cuerpo.despacho_id));
   if (!d || d.cisterna_id !== cisterna.id) throw new HttpError(404, 'Despacho no encontrado para este dispositivo');
   if (d.estado !== 'en_curso') return { ok: false, cortar: true, motivo: `Despacho ${d.estado}` };
-  const pulsos = Number(cuerpo.pulsos ?? Math.round(Number(cuerpo.litros) * cisterna.k_factor));
-  const litros = cuerpo.litros != null ? Number(cuerpo.litros) : pulsos / cisterna.k_factor;
-  const caudal = cuerpo.caudal != null ? Number(cuerpo.caudal) : null;
+  const litrosIn = numOpc(cuerpo.litros, 'litros'), pulsosIn = numOpc(cuerpo.pulsos, 'pulsos'), caudal = numOpc(cuerpo.caudal, 'caudal');
+  if (litrosIn == null && pulsosIn == null) throw new HttpError(400, 'Falta litros o pulsos');
+  const pulsos = pulsosIn ?? Math.round(litrosIn * cisterna.k_factor);
+  const litros = litrosIn ?? pulsos / cisterna.k_factor;
   q.updPulso.run(r1(litros), pulsos, caudal, ahoraISO(), d.id);
   const equipo = d.equipo_id ? q.equipoPorId.get(d.equipo_id) : null;
   const marcas = pulsoMarcas.get(d.id) || {};
@@ -728,15 +754,16 @@ ruta('POST', '/api/dispositivo/despacho/fin', async ({ req, cuerpo }) => {
   // Se admite cerrar un despacho que el vigilante marcó "sin señal": el controlador reenvía el cierre real al recuperar cobertura.
   const reenvio = d.estado === 'cortado' && d.motivo === 'sin_senal';
   if (d.estado !== 'en_curso' && !reenvio) throw new HttpError(409, `El despacho ya está ${d.estado}`);
-  const pulsos = Number(cuerpo.pulsos ?? d.pulsos);
-  const litros = cuerpo.litros != null ? Number(cuerpo.litros) : pulsos / cisterna.k_factor;
+  const pulsos = numOpc(cuerpo.pulsos, 'pulsos') ?? d.pulsos;
+  const litros = numOpc(cuerpo.litros, 'litros') ?? pulsos / cisterna.k_factor;
   const fin = tsDispositivo(cuerpo, d.inicio);
   const minutos = Math.max((new Date(fin) - new Date(d.inicio)) / 60000, 1 / 60);
   const marcasFin = pulsoMarcas.get(d.id) || {};
-  const caudalProm = cuerpo.caudal_prom != null ? r1(Number(cuerpo.caudal_prom)) : marcasFin._nCaudal ? r1(marcasFin._sumCaudal / marcasFin._nCaudal) : r1(litros / minutos);
-  const nivelDespues = cuerpo.nivel != null ? Number(cuerpo.nivel) : null;
+  const caudalIn = numOpc(cuerpo.caudal_prom, 'caudal_prom');
+  const caudalProm = caudalIn != null ? r1(caudalIn) : marcasFin._nCaudal ? r1(marcasFin._sumCaudal / marcasFin._nCaudal) : r1(litros / minutos);
+  const nivelDespues = numOpc(cuerpo.nivel, 'nivel');
   const equipo = d.equipo_id ? q.equipoPorId.get(d.equipo_id) : null;
-  const motivo = cuerpo.motivo || null;
+  const motivo = cuerpo.motivo ? String(cuerpo.motivo).slice(0, 40) : null;
   const estado = motivo && motivo !== 'normal' ? 'cortado' : 'completado';
   const anterior = q.ultimoHash.get();
   const hash = calcularHash({ ...d, fin, litros: r1(litros), pulsos }, anterior ? anterior.hash : null);
@@ -759,17 +786,18 @@ ruta('POST', '/api/dispositivo/nivel', async ({ req, cuerpo }) => {
   const nivel = Number(cuerpo.nivel);
   if (!Number.isFinite(nivel)) throw new HttpError(400, 'nivel inválido');
   const ts = tsDispositivo(cuerpo);
+  const lat = coordOpc(cuerpo.lat, 'lat'), lng = coordOpc(cuerpo.lng, 'lng');
   if (cisterna.ultima_lectura && ts < cisterna.ultima_lectura) {
     // Lectura histórica reenviada tras estar sin señal: se archiva sin alterar el nivel vigente ni evaluar reglas.
-    q.insLectura.run(cisterna.id, ts, nivel, cuerpo.lat ?? null, cuerpo.lng ?? null);
+    q.insLectura.run(cisterna.id, ts, nivel, lat, lng);
     return { ok: true, archivada: true, alertas: [] };
   }
   const enCurso = q.despachoEnCursoCisterna.get(cisterna.id);
   const ev = reglas.evaluarNivel({ cisterna, nivelAnterior: cisterna.ultima_lectura ? cisterna.nivel_actual : null, nivelNuevo: nivel, despachoEnCurso: !!enCurso });
-  q.updNivelCisterna.run(nivel, ahoraISO(), cuerpo.lat ?? null, cuerpo.lng ?? null, cisterna.id);
-  q.insLectura.run(cisterna.id, ts, nivel, cuerpo.lat ?? null, cuerpo.lng ?? null);
+  q.updNivelCisterna.run(nivel, ahoraISO(), lat, lng, cisterna.id);
+  q.insLectura.run(cisterna.id, ts, nivel, lat, lng);
   registrarAlertas(ev.alertas, { cisterna_id: cisterna.id });
-  emitir('nivel', { cisterna_id: cisterna.id, codigo: cisterna.codigo, nivel, capacidad: cisterna.capacidad, lat: cuerpo.lat, lng: cuerpo.lng }, { cisterna_id: cisterna.id });
+  emitir('nivel', { cisterna_id: cisterna.id, codigo: cisterna.codigo, nivel, capacidad: cisterna.capacidad, lat, lng }, { cisterna_id: cisterna.id });
   return { ok: true, alertas: ev.alertas.map(a => a.tipo) };
 });
 
@@ -777,7 +805,7 @@ ruta('POST', '/api/dispositivo/nivel', async ({ req, cuerpo }) => {
 function registrarRecarga(cisterna, cuerpo, origen) {
   const litros = Number(cuerpo.litros);
   if (!(litros > 0) || litros > cisterna.capacidad) throw new HttpError(400, 'litros inválido');
-  const nivelDespues = cuerpo.nivel_despues != null && cuerpo.nivel_despues !== '' ? Number(cuerpo.nivel_despues) : Math.min(cisterna.capacidad, cisterna.nivel_actual + litros);
+  const nivelDespues = numOpc(cuerpo.nivel_despues, 'nivel_despues') ?? Math.min(cisterna.capacidad, cisterna.nivel_actual + litros);
   q.insRecarga.run(cisterna.id, ahoraISO(), litros, cuerpo.guia || null, cisterna.nivel_actual, nivelDespues);
   q.updNivelCisterna.run(nivelDespues, ahoraISO(), null, null, cisterna.id);
   q.insLectura.run(cisterna.id, ahoraISO(), nivelDespues, cisterna.lat, cisterna.lng);
@@ -810,8 +838,10 @@ setInterval(() => {
     q.updFin.run(fin, d.litros, d.pulsos, null, null, 'cortado', 'sin_senal', null, d.id);
     registrarAlertas([{ tipo: 'sin_senal', severidad: 'media', mensaje: `Se perdió comunicación con ${cis.codigo} durante el despacho #${d.id} (${Math.round(d.litros)} L medidos). Cerrado por el servidor.` }],
       { despacho_id: d.id, cisterna_id: d.cisterna_id, equipo_id: d.equipo_id, operador_id: d.operador_id });
+    pulsoMarcas.delete(d.id);
     emitir('despacho_fin', q.despachoDetalle.get(d.id), { cisterna_id: d.cisterna_id, operador_id: d.operador_id });
   }
+  db.prepare('DELETE FROM sesiones WHERE expira < ?').run(ahoraISO());   // las sesiones vencidas no se borraban nunca
   const offline = new Date(Date.now() - 120e3).toISOString();
   const r = db.prepare('UPDATE cisternas SET en_linea = 0 WHERE en_linea = 1 AND (ultima_lectura IS NULL OR ultima_lectura < ?)').run(offline);
   if (r.changes) emitir('catalogo', { entidad: 'cisternas' });
@@ -822,7 +852,7 @@ setInterval(() => {
 // ------------------------------------------------------------------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 function servirEstatico(url, res) {
-  let ruta = decodeURIComponent(url.pathname);
+  let ruta; try { ruta = decodeURIComponent(url.pathname); } catch { res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Ruta inválida'); }
   if (ruta.endsWith('/')) ruta += 'index.html';
   if (ruta === '/chofer') ruta = '/chofer/index.html';
   const archivo = path.normalize(path.join(PUBLIC_DIR, ruta));
@@ -840,7 +870,7 @@ function servirEstatico(url, res) {
 const TLS = process.env.TLS_CERT && process.env.TLS_KEY ? { cert: fs.readFileSync(process.env.TLS_CERT), key: fs.readFileSync(process.env.TLS_KEY) } : null;
 const crearServidor = TLS ? h => require('node:https').createServer(TLS, h) : h => http.createServer(h);
 const servidor = crearServidor(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  let url; try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); } catch { res.writeHead(400); return res.end(); }
   if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-device-key', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE' }); return res.end(); }
   if (!url.pathname.startsWith('/api/')) return servirEstatico(url, res);
   try {
@@ -855,7 +885,7 @@ const servidor = crearServidor(async (req, res) => {
   } catch (e) {
     const codigo = e.codigo || 500;
     if (codigo === 500) console.error('[error]', req.method, url.pathname, e);
-    json(res, codigo, { error: e.message || 'Error interno' });
+    json(res, codigo, { error: codigo === 500 ? 'Error interno' : e.message || 'Error' });
   }
 });
 
