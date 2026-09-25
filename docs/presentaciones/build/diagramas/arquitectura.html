@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff;font-family:Calibri,Arial,sans-serif}</style></head><body>
+<svg width="1600" height="700" viewBox="0 0 1600 700" xmlns="http://www.w3.org/2000/svg" font-family="Calibri, Arial, sans-serif">
+  <defs><marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#1c5cab"/></marker></defs>
+  <!-- camión -->
+  <rect x="60" y="80" width="460" height="540" rx="20" fill="#eef3fb" stroke="#1c5cab" stroke-width="4"/>
+  <text x="290" y="130" text-anchor="middle" font-size="30" font-weight="700" fill="#0b2a66">CAMIÓN CISTERNA</text>
+  <g font-size="21" fill="#333">
+    <rect x="90" y="160" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="193">🔖 Lector RFID en la pistola</text>
+    <rect x="90" y="225" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="258">⏱ Caudalímetro de pulsos</text>
+    <rect x="90" y="290" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="323">🔒 Electroválvula normalmente cerrada</text>
+    <rect x="90" y="355" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="388">📏 Sensor de nivel del tanque</text>
+    <rect x="90" y="420" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="453">📍 GPS + módem 4G (controlador ESP32)</text>
+    <rect x="90" y="485" width="400" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="110" y="518">📱 Tablet del chofer (app FuelGuard)</text>
+    <text x="290" y="590" text-anchor="middle" font-size="19" fill="#666">Funciona sin cobertura: lista blanca local y cola de eventos</text>
+  </g>
+  <!-- flecha 4G -->
+  <line x1="520" y1="350" x2="640" y2="350" stroke="#1c5cab" stroke-width="8" marker-end="url(#a)"/>
+  <text x="580" y="330" text-anchor="middle" font-size="20" fill="#1c5cab" font-weight="700">4G / LTE</text>
+  <!-- servidor -->
+  <rect x="650" y="200" width="330" height="300" rx="20" fill="#1e2761"/>
+  <text x="815" y="250" text-anchor="middle" font-size="28" font-weight="700" fill="#fff">SERVIDOR</text>
+  <text x="815" y="282" text-anchor="middle" font-size="22" fill="#cadcfc">FuelGuard</text>
+  <g font-size="19" fill="#fff"><text x="680" y="330">• API de telemetría</text><text x="680" y="362">• 12 reglas antirrobo</text><text x="680" y="394">• Conciliación de nivel</text><text x="680" y="426">• Hash de integridad</text><text x="680" y="458">• Reportes y correo</text></g>
+  <!-- flecha a dashboard -->
+  <line x1="980" y1="350" x2="1100" y2="350" stroke="#1c5cab" stroke-width="8" marker-end="url(#a)"/>
+  <text x="1040" y="330" text-anchor="middle" font-size="20" fill="#1c5cab" font-weight="700">tiempo real</text>
+  <!-- dashboard -->
+  <rect x="1110" y="80" width="430" height="540" rx="20" fill="#eef3fb" stroke="#1c5cab" stroke-width="4"/>
+  <text x="1325" y="130" text-anchor="middle" font-size="30" font-weight="700" fill="#0b2a66">DASHBOARD Y REPORTES</text>
+  <g font-size="21" fill="#333">
+    <rect x="1140" y="160" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="193">👔 Gerencia: KPIs, merma, costo</text>
+    <rect x="1140" y="225" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="258">🛡 Supervisor: alertas en vivo</text>
+    <rect x="1140" y="290" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="323">🚚 Chofer: su cisterna</text>
+    <rect x="1140" y="355" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="388">👷 Operador: su consumo</text>
+    <rect x="1140" y="420" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="453">📊 Excel · PDF · correo automático</text>
+    <rect x="1140" y="485" width="370" height="52" rx="10" fill="#fff" stroke="#ccd"/><text x="1160" y="518">🔗 API para ERP</text>
+    <text x="1325" y="590" text-anchor="middle" font-size="19" fill="#666">Web en cualquier PC o celular</text>
+  </g>
+  <!-- equipos -->
+  <rect x="650" y="540" width="330" height="110" rx="14" fill="#e9f5ec" stroke="#1fb51f" stroke-width="4"/>
+  <text x="815" y="582" text-anchor="middle" font-size="24" font-weight="700" fill="#0a6f0a">EQUIPOS</text>
+  <text x="815" y="614" text-anchor="middle" font-size="19" fill="#333">tag RFID en el tanque · opcional sensor + CAN</text>
+  <line x1="520" y1="500" x2="650" y2="590" stroke="#1fb51f" stroke-width="5" stroke-dasharray="10 8"/>
+</svg></body></html>

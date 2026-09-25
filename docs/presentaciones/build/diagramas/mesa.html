@@ -1,0 +1,41 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff;font-family:Calibri,Arial,sans-serif}</style></head><body>
+<svg width="1600" height="620" viewBox="0 0 1600 620" xmlns="http://www.w3.org/2000/svg" font-family="Calibri, Arial, sans-serif">
+  <defs><marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#1c5cab"/></marker></defs>
+  <rect x="40" y="60" width="1520" height="500" rx="20" fill="#f8f8f6" stroke="#ddd" stroke-width="2"/>
+  <text x="800" y="110" text-anchor="middle" font-size="30" font-weight="700" fill="#0b2a66">Banco de pruebas: todo el sistema sin tocar el camión</text>
+  <!-- elementos -->
+  <g font-size="22">
+    <rect x="90" y="170" width="260" height="130" rx="14" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="220" y="215" text-anchor="middle" font-weight="700" fill="#b5532c">Pulsador</text>
+    <text x="220" y="248" text-anchor="middle" font-size="18" fill="#555">GPIO27 ↔ GND</text>
+    <text x="220" y="276" text-anchor="middle" font-size="18" fill="#555">= caudalímetro</text>
+
+    <rect x="90" y="340" width="260" height="130" rx="14" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="220" y="385" text-anchor="middle" font-weight="700" fill="#b5532c">Potenciómetro 10 kΩ</text>
+    <text x="220" y="418" text-anchor="middle" font-size="18" fill="#555">3,3 V – GPIO34 – GND</text>
+    <text x="220" y="446" text-anchor="middle" font-size="18" fill="#555">= sensor de nivel</text>
+
+    <rect x="400" y="170" width="260" height="130" rx="14" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="530" y="215" text-anchor="middle" font-weight="700" fill="#b5532c">RDM6300 + tag</text>
+    <text x="530" y="248" text-anchor="middle" font-size="18" fill="#555">TX → GPIO16</text>
+    <text x="530" y="276" text-anchor="middle" font-size="18" fill="#555">= pistola con antena</text>
+
+    <rect x="400" y="340" width="260" height="130" rx="14" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="530" y="385" text-anchor="middle" font-weight="700" fill="#b5532c">Relé + LED</text>
+    <text x="530" y="418" text-anchor="middle" font-size="18" fill="#555">GPIO26</text>
+    <text x="530" y="446" text-anchor="middle" font-size="18" fill="#555">= electroválvula</text>
+  </g>
+  <line x1="660" y1="235" x2="740" y2="300" stroke="#1c5cab" stroke-width="5"/><line x1="660" y1="405" x2="740" y2="340" stroke="#1c5cab" stroke-width="5"/>
+  <line x1="350" y1="235" x2="400" y2="235" stroke="#1c5cab" stroke-width="5"/><line x1="350" y1="405" x2="400" y2="405" stroke="#1c5cab" stroke-width="5"/>
+  <!-- placa -->
+  <rect x="740" y="230" width="260" height="180" rx="16" fill="#1e2761"/>
+  <text x="870" y="300" text-anchor="middle" font-size="24" font-weight="700" fill="#fff">ESP32 + 4G</text>
+  <text x="870" y="335" text-anchor="middle" font-size="18" fill="#cadcfc">USB al PC · WiFi o SIM</text>
+  <line x1="1000" y1="320" x2="1110" y2="320" stroke="#1c5cab" stroke-width="8" marker-end="url(#a)"/>
+  <!-- PC servidor -->
+  <rect x="1120" y="200" width="400" height="240" rx="16" fill="#eef3fb" stroke="#1c5cab" stroke-width="4"/>
+  <text x="1320" y="250" text-anchor="middle" font-size="24" font-weight="700" fill="#0b2a66">PC con FuelGuard</text>
+  <text x="1320" y="285" text-anchor="middle" font-size="19" fill="#555">npm run dev · misma WiFi</text>
+  <g font-size="19" fill="#333"><text x="1150" y="330">✔ Cisterna "en línea" en el dashboard</text><text x="1150" y="362">✔ Tag → despacho autorizado</text><text x="1150" y="394">✔ Pulsador → litros suben</text><text x="1150" y="426">✔ Quitar tag → despacho cerrado</text></g>
+  <text x="800" y="530" text-anchor="middle" font-size="22" fill="#0a6f0a" font-weight="700">Si esto funciona en la mesa, el 80 % del riesgo de la instalación quedó resuelto</text>
+</svg></body></html>

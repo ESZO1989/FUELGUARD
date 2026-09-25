@@ -1,0 +1,63 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff;font-family:Calibri,Arial,sans-serif}</style></head><body>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="Calibri, Arial, sans-serif">
+  <!-- placa -->
+  <rect x="560" y="120" width="480" height="640" rx="18" fill="#1e2761" stroke="#0b1236" stroke-width="6"/>
+  <text x="800" y="175" text-anchor="middle" font-size="30" font-weight="700" fill="#fff">CONTROLADOR ESP32 + SIM7600</text>
+  <text x="800" y="208" text-anchor="middle" font-size="20" fill="#cadcfc">LILYGO T‑SIM7600G‑H (piloto)</text>
+  <!-- pines izquierda -->
+  <g font-size="22" fill="#fff" font-weight="700">
+    <text x="585" y="290">GPIO27</text><text x="585" y="360">GPIO26</text><text x="585" y="430">GPIO34</text><text x="585" y="500">GPIO16</text><text x="585" y="570">GPIO25</text><text x="585" y="640">5V / GND</text>
+  </g>
+  <g fill="#cadcfc"><circle cx="562" cy="283" r="9"/><circle cx="562" cy="353" r="9"/><circle cx="562" cy="423" r="9"/><circle cx="562" cy="493" r="9"/><circle cx="562" cy="563" r="9"/><circle cx="562" cy="633" r="9"/></g>
+  <!-- pines derecha -->
+  <g font-size="22" fill="#fff" font-weight="700" text-anchor="end">
+    <text x="1015" y="290">ANT LTE</text><text x="1015" y="360">ANT GPS</text><text x="1015" y="430">SIM M2M</text><text x="1015" y="500">USB‑C</text>
+  </g>
+  <g fill="#cadcfc"><circle cx="1038" cy="283" r="9"/><circle cx="1038" cy="353" r="9"/><circle cx="1038" cy="423" r="9"/><circle cx="1038" cy="493" r="9"/></g>
+  <!-- periféricos izquierda -->
+  <g font-size="22">
+    <rect x="60" y="250" width="330" height="70" rx="10" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="225" y="280" text-anchor="middle" font-weight="700" fill="#b5532c">Caudalímetro (pulsos)</text><text x="225" y="306" text-anchor="middle" font-size="18" fill="#555">colector abierto → pull‑up interno</text>
+    <line x1="390" y1="285" x2="553" y2="283" stroke="#ec835a" stroke-width="5"/>
+
+    <rect x="60" y="320" width="330" height="70" rx="10" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="225" y="350" text-anchor="middle" font-weight="700" fill="#b5532c">Electroválvula NC</text><text x="225" y="376" text-anchor="middle" font-size="18" fill="#555">vía módulo relé 5 V · bobina a 12/24 V + diodo</text>
+    <line x1="390" y1="355" x2="553" y2="353" stroke="#ec835a" stroke-width="5"/>
+
+    <rect x="60" y="390" width="330" height="70" rx="10" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="225" y="420" text-anchor="middle" font-weight="700" fill="#b5532c">Sensor de nivel 4–20 mA</text><text x="225" y="446" text-anchor="middle" font-size="18" fill="#555">lazo 24 V → sensor → shunt 150 Ω → GND</text>
+    <line x1="390" y1="425" x2="553" y2="423" stroke="#ec835a" stroke-width="5"/>
+
+    <rect x="60" y="460" width="330" height="70" rx="10" fill="#fff3ea" stroke="#ec835a" stroke-width="4"/>
+    <text x="225" y="490" text-anchor="middle" font-weight="700" fill="#b5532c">Lector RFID RDM6300</text><text x="225" y="516" text-anchor="middle" font-size="18" fill="#555">TX del lector → GPIO16 · 9600 8N1 · 5 V</text>
+    <line x1="390" y1="495" x2="553" y2="493" stroke="#ec835a" stroke-width="5"/>
+
+    <rect x="60" y="530" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="225" y="560" text-anchor="middle" font-weight="700" fill="#0b2a66">Zumbador (opcional)</text><text x="225" y="586" text-anchor="middle" font-size="18" fill="#555">avisos al chofer</text>
+    <line x1="390" y1="565" x2="553" y2="563" stroke="#1c5cab" stroke-width="5"/>
+
+    <rect x="60" y="600" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="225" y="630" text-anchor="middle" font-weight="700" fill="#0b2a66">Fuente DC‑DC 12/24 V → 5 V 3 A</text><text x="225" y="656" text-anchor="middle" font-size="18" fill="#555">fusible 3 A + supresor de transitorios</text>
+    <line x1="390" y1="635" x2="553" y2="633" stroke="#1c5cab" stroke-width="5"/>
+  </g>
+  <!-- periféricos derecha -->
+  <g font-size="22">
+    <rect x="1210" y="250" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="1375" y="280" text-anchor="middle" font-weight="700" fill="#0b2a66">Antena LTE 4G</text><text x="1375" y="306" text-anchor="middle" font-size="18" fill="#555">techo de cabina, lejos del metal</text>
+    <line x1="1047" y1="283" x2="1210" y2="285" stroke="#1c5cab" stroke-width="5"/>
+    <rect x="1210" y="320" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="1375" y="350" text-anchor="middle" font-weight="700" fill="#0b2a66">Antena GPS activa</text><text x="1375" y="376" text-anchor="middle" font-size="18" fill="#555">base magnética con vista al cielo</text>
+    <line x1="1047" y1="353" x2="1210" y2="355" stroke="#1c5cab" stroke-width="5"/>
+    <rect x="1210" y="390" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="1375" y="420" text-anchor="middle" font-weight="700" fill="#0b2a66">SIM M2M del operador</text><text x="1375" y="446" text-anchor="middle" font-size="18" fill="#555">APN en config.h</text>
+    <line x1="1047" y1="423" x2="1210" y2="425" stroke="#1c5cab" stroke-width="5"/>
+    <rect x="1210" y="460" width="330" height="70" rx="10" fill="#f4f5f2" stroke="#1c5cab" stroke-width="4"/>
+    <text x="1375" y="490" text-anchor="middle" font-weight="700" fill="#0b2a66">USB‑C (solo para grabar)</text><text x="1375" y="516" text-anchor="middle" font-size="18" fill="#555">pio run -e esp32-sim7600 -t upload</text>
+    <line x1="1047" y1="493" x2="1210" y2="495" stroke="#1c5cab" stroke-width="5"/>
+  </g>
+  <!-- notas -->
+  <rect x="60" y="720" width="1480" height="140" rx="12" fill="#f8f8f6" stroke="#ddd" stroke-width="2"/>
+  <text x="90" y="760" font-size="22" font-weight="700" fill="#333">Reglas de oro del cableado</text>
+  <text x="90" y="795" font-size="20" fill="#444">• Negativo común al chasis · cables de señal apantallados con malla a GND solo en la caja · etiquetar cada cable en ambos extremos</text>
+  <text x="90" y="828" font-size="20" fill="#444">• El shunt de 150 Ω nunca se abre con el lazo energizado · prensaestopas hacia abajo · antenas fuera de la caja metálica</text>
+</svg></body></html>
